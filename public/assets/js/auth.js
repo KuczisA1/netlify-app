@@ -24,6 +24,12 @@
     return 'pending';
   }
 
+  function updateAuthLinks(user) {
+    // Pokaż „Dashboard” na stronie startowej tylko, gdy user jest zalogowany
+    const dashboardLink = $('dashboard-link');
+    if (dashboardLink) dashboardLink.style.display = user ? '' : 'none';
+  }
+
   async function ensureLoggedIn() {
     if (!hasIdentity()) throw new Error('identity-not-loaded');
     const user = window.netlifyIdentity.currentUser();
@@ -47,11 +53,16 @@
     try {
       if (!hasIdentity()) return;
       let user = window.netlifyIdentity.currentUser();
+      updateAuthLinks(user); // pokaż/ukryj Dashboard na index.html
+
       if (!user) return;
 
       // świeży user + token
       user = await refreshUser(user);
       try { setJwtCookie(await user.jwt()); } catch {}
+
+      // po odświeżeniu aktualizujemy też link na index
+      updateAuthLinks(user);
 
       const emailEl = $('user-email');
       const statusEl = $('user-status');
@@ -81,9 +92,8 @@
 
     try {
       await ensureLoggedIn();   // jeśli nie — wyjątek
-      await paintUser();        // zawsze malujemy po wejściu/po powrocie
+      await paintUser();        // zawsze malujemy po wejściu/po F5/po powrocie
     } catch {
-      // wymuś logowanie
       try { window.netlifyIdentity.open('login'); } catch {}
     }
   }
@@ -108,6 +118,7 @@
 
     // Lifecycle Identity
     window.netlifyIdentity.on('init', async (user) => {
+      updateAuthLinks(user);
       if (user) {
         try { setJwtCookie(await user.jwt()); } catch {}
       } else {
@@ -117,32 +128,36 @@
     });
 
     window.netlifyIdentity.on('login', async (user) => {
+      updateAuthLinks(user);
       try { setJwtCookie(await user.jwt()); } catch {}
       window.location.href = '/dashboard.html';
     });
 
     window.netlifyIdentity.on('logout', () => {
+      updateAuthLinks(null);
       clearJwtCookie();
       window.location.href = '/';
     });
 
-    // ***** Obsługa „powrotu” i zmian widoczności *****
-    // pageshow: wywoływany także przy powrocie z BFCache (e.persisted === true)
+    // Obsługa „powrotu” i zmian widoczności
     window.addEventListener('pageshow', async () => {
+      // po powrocie z /members/ lub po BFCache
       await guardAndPaintDashboard();
+      // zaktualizuj link na index
+      updateAuthLinks(window.netlifyIdentity.currentUser());
     });
 
-    // visibilitychange: gdy wracamy do zakładki
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState === 'visible') {
         await guardAndPaintDashboard();
+        updateAuthLinks(window.netlifyIdentity.currentUser());
       }
     });
 
-    // storage: gdy w innej zakładce nastąpi login/logout
+    // gdy w innej karcie nastąpi login/logout
     window.addEventListener('storage', async (e) => {
       if (e.key && e.key.includes('gotrue.user')) {
-        // gotrue używa localStorage; po zmianie odrysuj dashboard
+        updateAuthLinks(window.netlifyIdentity.currentUser());
         await guardAndPaintDashboard();
       }
     });
@@ -153,6 +168,7 @@
     if (!hasIdentity()) return;
     bootstrap();
     // pierwsze wejście
+    updateAuthLinks(window.netlifyIdentity.currentUser());
     await guardAndPaintDashboard();
   });
 })();
