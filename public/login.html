@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zaloguj się</title>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="/style.css">
+
+  <!-- Netlify Identity (widget do eventów) -->
+  <script defer src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
+  <!-- GoTrue JS (API Identity do custom UI) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/gotrue-js@1.0.26/dist/gotrue.min.js"></script>
+
+</head>
+<body>
+  <div class="wrapper">
+    <form id="auth-form">
+      <h2 id="form-title">Login</h2>
+
+      <div class="input-field">
+        <input id="email" type="email" required autocomplete="email">
+        <label>Enter your email</label>
+      </div>
+
+      <div class="input-field">
+        <input id="password" type="password" required autocomplete="current-password">
+        <label>Enter your password</label>
+      </div>
+
+      <div class="forget">
+        <label for="remember">
+          <input type="checkbox" id="remember">
+          <p>Remember me</p>
+        </label>
+        <a href="#" id="forgot">Forgot password?</a>
+      </div>
+
+      <button id="submit-btn" type="submit">Log In</button>
+
+      <div class="register">
+        <p id="toggle-text">
+          Don't have an account? <a href="#" id="toggle-mode">Register</a>
+        </p>
+      </div>
+
+      <p id="message" class="msg" aria-live="polite"></p>
+    </form>
+  </div>
+
+  <script>
+    // ---------- KONFIGURACJA GOTRUE ----------
+    const auth = new window.GoTrue({
+      APIUrl: window.location.origin + "/.netlify/identity",
+      setCookie: true
+    });
+
+    // ---------- ELEMENTY UI ----------
+    const form = document.getElementById('auth-form');
+    const title = document.getElementById('form-title');
+    const submitBtn = document.getElementById('submit-btn');
+    const toggleText = document.getElementById('toggle-text');
+    const toggleMode = document.getElementById('toggle-mode');
+    const forgot = document.getElementById('forgot');
+    const msg = document.getElementById('message');
+
+    const emailEl = document.getElementById('email');
+    const passEl  = document.getElementById('password');
+    const rememberEl = document.getElementById('remember');
+
+    let mode = 'login'; // 'login' | 'register'
+
+    function setMode(newMode){
+      mode = newMode;
+      if(mode === 'login'){
+        title.textContent = 'Login';
+        submitBtn.textContent = 'Log In';
+        toggleText.innerHTML = `Don't have an account? <a href="#" id="toggle-mode">Register</a>`;
+        forgot.style.display = 'inline';
+      } else {
+        title.textContent = 'Register';
+        submitBtn.textContent = 'Create account';
+        toggleText.innerHTML = `Already have an account? <a href="#" id="toggle-mode">Log in</a>`;
+        forgot.style.display = 'none';
+      }
+      // re-podłącz klikacz (bo innerHTML podmienia element)
+      document.getElementById('toggle-mode').addEventListener('click', (e)=>{e.preventDefault(); setMode(mode==='login'?'register':'login');});
+      msg.textContent = '';
+    }
+
+    // Inicjalizacja widgetu (na wszelki wypadek, gdyby użytkownik zalogował się inną metodą)
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.netlifyIdentity) {
+        window.netlifyIdentity.on('login', () => window.location.href = "/dashboard/");
+        window.netlifyIdentity.init();
+      }
+      setMode('login');
+    });
+
+    // ---------- LOGOWANIE / REJESTRACJA ----------
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.textContent = '';
+
+      const email = emailEl.value.trim();
+      const password = passEl.value;
+
+      if(!email || !password){
+        msg.textContent = 'Podaj e-mail i hasło.';
+        return;
+      }
+
+      try {
+        if (mode === 'login') {
+          // starsza wersja gotrue-js używa (email, password, remember)
+          await auth.login(email, password, rememberEl.checked);
+          window.location.href = "/dashboard/";
+        } else {
+          // Rejestracja
+          const user = await auth.signup(email, password);
+          // Jeśli w projekcie wymagane jest potwierdzenie e-maila:
+          if (!user || (user && !user.confirmed_at)) {
+            msg.textContent = 'Rejestracja udana. Sprawdź skrzynkę i potwierdź e-mail, a potem zaloguj się.';
+            setMode('login');
+            return;
+          }
+          // Jeśli bez potwierdzenia – zaloguj od razu:
+          await auth.login(email, password, true);
+          window.location.href = "/dashboard/";
+        }
+      } catch (error) {
+        const text = (error && (error.message || error.error_description || error.description)) || 'Wystąpił błąd.';
+        msg.textContent = text;
+      }
+    });
+
+    // ---------- RESET HASŁA ----------
+    forgot.addEventListener('click', async (e) => {
+      e.preventDefault();
+      msg.textContent = '';
+      const email = emailEl.value.trim();
+      if(!email){
+        msg.textContent = 'Podaj e-mail do resetu hasła.';
+        emailEl.focus();
+        return;
+      }
+      try{
+        await auth.requestPasswordRecovery(email);
+        msg.textContent = 'Wysłaliśmy link do resetu hasła na podany e-mail.';
+      }catch(err){
+        msg.textContent = (err && err.message) || 'Nie udało się wysłać resetu hasła.';
+      }
+    });
+  </script>
+</body>
+</html>
