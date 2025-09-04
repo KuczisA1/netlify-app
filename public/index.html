@@ -2,35 +2,51 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Start</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="/style.css"/>
-  <script defer src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
-  <script>
-    // Jeśli już zalogowany -> od razu na dashboard
-    document.addEventListener('DOMContentLoaded', () => {
-      if (window.netlifyIdentity) {
-        window.netlifyIdentity.on('init', user => {
-          if (user) window.location.href = "/dashboard/";
-        });
-        window.netlifyIdentity.init();
-      }
-    });
-  </script>
+  <link rel="stylesheet" href="/style.css" />
+  <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
   <style>
-    /* prosta hero, żeby przycisk był na środku */
     body::before{background:none;}
-    body{background:#0c0c0c;color:#fff;}
+    body{background:#0c0c0c;color:#fff}
     .centerbox{display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:16px;text-align:center;padding:24px}
-    .btn{background:#fff;color:#000;font-weight:700;border:none;padding:14px 24px;border-radius:8px;cursor:pointer;font-size:18px;transition:.25s}
-    .btn:hover{transform:translateY(-1px);background:#e9e9e9}
+    .btn{background:#fff;color:#000;font-weight:700;border:none;padding:14px 24px;border-radius:8px;cursor:pointer;font-size:18px;transition:.2s}
+    .btn:hover{transform:translateY(-1px)}
   </style>
 </head>
 <body>
   <main class="centerbox">
-    <h1>Witaj w Chemdisk</h1>
-    <a class="btn" href="/login.html">Zaloguj się</a>
+    <h1>Chemdisk</h1>
+    <!-- zamiast /login.html używamy pewnego widgetu -->
+    <button class="btn" id="loginBtn">Zaloguj się</button>
   </main>
+
+  <script>
+    // Inicjalizacja i przekierowania
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!window.netlifyIdentity) return;
+
+      // 1) Po inicjalizacji: jeśli user istnieje → /dashboard/
+      window.netlifyIdentity.on('init', (user) => {
+        if (user) {
+          window.location.replace('/dashboard/'); // ważny końcowy slash
+        }
+      });
+
+      // 2) Po logowaniu z widgetu → /dashboard/
+      window.netlifyIdentity.on('login', () => {
+        window.location.replace('/dashboard/');
+      });
+
+      // 3) Start widgetu
+      window.netlifyIdentity.init();
+
+      // Klik przycisku → otwórz modal logowania
+      document.getElementById('loginBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        window.netlifyIdentity.open('login');
+      });
+    });
+  </script>
 </body>
 </html>
