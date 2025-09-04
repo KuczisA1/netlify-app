@@ -1,52 +1,28 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Start</title>
-  <link rel="stylesheet" href="/style.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aplikacja – start</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
   <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
-  <style>
-    body::before{background:none;}
-    body{background:#0c0c0c;color:#fff}
-    .centerbox{display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:16px;text-align:center;padding:24px}
-    .btn{background:#fff;color:#000;font-weight:700;border:none;padding:14px 24px;border-radius:8px;cursor:pointer;font-size:18px;transition:.2s}
-    .btn:hover{transform:translateY(-1px)}
-  </style>
+  <script defer src="/assets/js/auth.js"></script>
 </head>
 <body>
-  <main class="centerbox">
-    <h1>Chemdisk</h1>
-    <!-- zamiast /login.html używamy pewnego widgetu -->
-    <button class="btn" id="loginBtn">Zaloguj się</button>
-  </main>
+  <div class="container">
+    <header class="header">
+  <div class="badge">Aplikacja</div>
+  <nav>
+    <a id="dashboard-link" href="/dashboard.html" style="display:none">Dashboard</a>
+  </nav>
+</header>
 
-  <script>
-    // Inicjalizacja i przekierowania
-    document.addEventListener('DOMContentLoaded', () => {
-      if (!window.netlifyIdentity) return;
 
-      // 1) Po inicjalizacji: jeśli user istnieje → /dashboard/
-      window.netlifyIdentity.on('init', (user) => {
-        if (user) {
-          window.location.replace('/dashboard/'); // ważny końcowy slash
-        }
-      });
-
-      // 2) Po logowaniu z widgetu → /dashboard/
-      window.netlifyIdentity.on('login', () => {
-        window.location.replace('/dashboard/');
-      });
-
-      // 3) Start widgetu
-      window.netlifyIdentity.init();
-
-      // Klik przycisku → otwórz modal logowania
-      document.getElementById('loginBtn').addEventListener('click', (e) => {
-        e.preventDefault();
-        window.netlifyIdentity.open('login');
-      });
-    });
-  </script>
+    <section class="hero card">
+      <h1>Witaj</h1>
+      <p>Zaloguj się, aby przejść do dashboardu.</p>
+      <button class="btn btn-primary" id="login-btn">Zaloguj / Zarejestruj</button>
+    </section>
+  </div>
 </body>
 </html>
