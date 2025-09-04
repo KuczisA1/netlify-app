@@ -42,3 +42,15 @@
   for = "/members/*"
   [headers.values]
     Cache-Control = "private, no-store, no-cache, must-revalidate"
+
+# Nie buforuj dashboardu - wymusza pełne odświeżenie po powrocie
+[[headers]]
+  for = "/dashboard.html"
+  [headers.values]
+    Cache-Control = "private, no-store, no-cache, must-revalidate"
+
+# (Już masz) bez cache dla members
+[[headers]]
+  for = "/members/*"
+  [headers.values]
+    Cache-Control = "private, no-store, no-cache, must-revalidate"
