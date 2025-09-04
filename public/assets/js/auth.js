@@ -4,9 +4,11 @@
 
   const $ = (id) => document.getElementById(id);
   const hasIdentity = () => typeof window !== 'undefined' && !!window.netlifyIdentity;
+  let bootstrapped = false;
 
-  // ————— nf_jwt cookie —————
+  // ----- nf_jwt cookie -----
   function setJwtCookie(token) {
+    if (!token) return;
     document.cookie = `nf_jwt=${token}; Path=/; Secure; SameSite=Lax`;
   }
   function clearJwtCookie() {
@@ -18,6 +20,34 @@
     if (roles.includes('admin') || roles.includes('active')) return 'active';
     if (roles.includes('pending')) return 'pending';
     return 'pending';
+  }
+
+  // Czeka na dostępność widgetu i event 'init'
+  function waitForIdentityInit(timeoutMs = 4000) {
+    return new Promise((resolve) => {
+      if (!hasIdentity()) return resolve(null);
+
+      let resolved = false;
+      const done = (u) => { if (!resolved) { resolved = true; resolve(u ?? window.netlifyIdentity.currentUser()); } };
+
+      // Jeśli ktoś już zainicjował wcześniej
+      try {
+        const u = window.netlifyIdentity.currentUser();
+        // Podłącz listener zanim wywołamy init — żeby nie przegapić eventu
+        window.netlifyIdentity.on('init', done);
+        // Wywołujemy init zawsze — bezpieczne wielokrotne wywołanie
+        window.netlifyIdentity.init();
+        if (u !== undefined) {
+          // Jeśli currentUser już jest zdefiniowany (null albo user), zaczekaj na 'init', ale daj fallback
+          setTimeout(() => done(u), 50);
+        }
+      } catch {
+        // w razie czego i tak spróbujemy po init
+        try { window.netlifyIdentity.on('init', done); window.netlifyIdentity.init(); } catch {}
+      }
+
+      setTimeout(() => done(window.netlifyIdentity.currentUser?.()), timeoutMs);
+    });
   }
 
   async function ensureLoggedIn() {
@@ -42,12 +72,9 @@
     let user = window.netlifyIdentity.currentUser();
     if (!user) return;
 
-    // świeży user + token
+    // świeży user i token
     user = await refreshUser(user);
-    try {
-      const freshToken = await user.jwt();
-      if (freshToken) setJwtCookie(freshToken);
-    } catch {}
+    try { setJwtCookie(await user.jwt()); } catch {}
 
     const emailEl = $('user-email');
     const statusEl = $('user-status');
@@ -68,52 +95,42 @@
     }
   }
 
-  // Client-side strażnik: bez logowania nie wejdzie na dashboard,
-  // a na members bez roliactive/admin też go cofniemy (belt & suspenders).
   async function clientGuards() {
     if (!hasIdentity()) return;
     const path = location.pathname;
 
-    // poczekaj aż identity się zainicjalizuje
-    await new Promise((res) => setTimeout(res, 0));
-
     const user = window.netlifyIdentity.currentUser();
 
-    // DASHBOARD: wymuś logowanie
+    // DASHBOARD: nie wpuszczaj niezalogowanego (dodatkowa bariera na kliencie)
     if (path.endsWith('/dashboard.html')) {
       if (!user) {
         window.netlifyIdentity.open('login');
-        return;
+        return false;
       }
     }
 
-    // MEMBERS: dodatkowa klientowa weryfikacja (serwer już blokuje)
+    // MEMBERS: jeśli jakimś cudem trafi niezalogowany/bez roli
     if (path.startsWith('/members')) {
-      if (!user) { location.replace('/unauthorized.html'); return; }
+      if (!user) { location.replace('/unauthorized.html'); return false; }
       const roles = (user.app_metadata && user.app_metadata.roles) || [];
       const status = statusFromRoles(roles);
-      if (status !== 'active') { location.replace('/unauthorized.html'); return; }
+      if (status !== 'active') { location.replace('/unauthorized.html'); return false; }
     }
+
+    return true;
   }
 
-  function onReady() {
-    if (!hasIdentity()) return;
-
-    try { window.netlifyIdentity.init(); } catch {}
+  function bootstrap() {
+    if (bootstrapped || !hasIdentity()) return;
+    bootstrapped = true;
 
     const loginBtn = $('login-btn');
-    if (loginBtn) loginBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      window.netlifyIdentity.open('login');
-    });
+    if (loginBtn) loginBtn.addEventListener('click', (e) => { e.preventDefault(); window.netlifyIdentity.open('login'); });
 
     const logoutLink = $('logout-link');
-    if (logoutLink) logoutLink.addEventListener('click', (e) => {
-      e.preventDefault();
-      window.netlifyIdentity.logout();
-    });
+    if (logoutLink) logoutLink.addEventListener('click', (e) => { e.preventDefault(); window.netlifyIdentity.logout(); });
 
-    // Identity lifecycle
+    // Lifecycle
     window.netlifyIdentity.on('init', async (user) => {
       if (user) {
         try { setJwtCookie(await user.jwt()); } catch {}
@@ -121,9 +138,9 @@
         clearJwtCookie();
       }
 
-      await clientGuards();
-
-      if (location.pathname.endsWith('/dashboard.html') && user) {
+      const ok = await clientGuards();
+      // Jeśli na dashboardzie i zalogowany — narysuj UI
+      if (ok && location.pathname.endsWith('/dashboard.html') && user) {
         await paintUser();
       }
     });
@@ -137,14 +154,23 @@
       clearJwtCookie();
       window.location.href = '/';
     });
-
-    // Jeśli init już się wydarzył
-    clientGuards().then(() => {
-      if (location.pathname.endsWith('/dashboard.html')) {
-        ensureLoggedIn().then(paintUser).catch(() => window.netlifyIdentity.open('login'));
-      }
-    });
   }
 
-  document.addEventListener('DOMContentLoaded', onReady);
+  document.addEventListener('DOMContentLoaded', async () => {
+    if (!hasIdentity()) return;
+    bootstrap();
+
+    // Zawsze poczekaj na pełną inicjalizację zanim sprawdzisz dostęp / malujesz UI
+    await waitForIdentityInit();
+
+    // Dodatkowo: jeśli jesteśmy na dashboardzie — enforce + paint
+    if (location.pathname.endsWith('/dashboard.html')) {
+      try {
+        await ensureLoggedIn();   // jeśli nie — rzuci i otworzy login
+        await paintUser();        // zawsze malujemy po wejściu (naprawia znikanie)
+      } catch {
+        window.netlifyIdentity.open('login');
+      }
+    }
+  });
 })();

@@ -3,7 +3,6 @@
   functions = "netlify/functions"
 
 # ===== MEMBERS: tylko active/admin =====
-# 1) Wpuść, gdy jest rola (wymaga nf_jwt)
 [[redirects]]
   from = "/members/*"
   to = "/members/:splat"
@@ -11,7 +10,6 @@
   force = true
   conditions = { Role = ["active", "admin"] }
 
-# 2) Fallback: brak roli/ciasteczka -> 401/Unauthorized (albo daj 302 na "/")
 [[redirects]]
   from = "/members/*"
   to = "/unauthorized.html"
@@ -19,7 +17,6 @@
   force = true
 
 # ===== DASHBOARD: tylko zalogowani (pending/active/admin) =====
-# 1) Wpuść zalogowanych
 [[redirects]]
   from = "/dashboard.html"
   to = "/dashboard.html"
@@ -27,21 +24,20 @@
   force = true
   conditions = { Role = ["pending", "active", "admin"] }
 
-# 2) Fallback: niezalogowany -> 302 na stronę startową lub 401/unauthorized
 [[redirects]]
   from = "/dashboard.html"
   to = "/"
   status = 302
   force = true
 
-# HTTPS (zostaw jak miałeś)
+# HTTPS
 [[redirects]]
   from = "http://*"
   to = "https://:splat"
   status = 301
   force = true
 
-# Cache: nie buforuj members (przeglądarka + CDN)
+# Bez cache dla members
 [[headers]]
   for = "/members/*"
   [headers.values]
