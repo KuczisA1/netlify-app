@@ -14,7 +14,10 @@
   }
 
   function statusFromRoles(roles) {
-    return Array.isArray(roles) && roles.includes('active') ? 'active' : 'pending';
+    if (!Array.isArray(roles)) return 'pending';
+    if (roles.includes('active') || roles.includes('admin')) return 'active';
+    if (roles.includes('pending')) return 'pending';
+    return 'pending';
   }
 
   async function ensureLoggedIn() {
@@ -25,8 +28,15 @@
   }
 
   async function refreshUser(user) {
-    try { await user.jwt(true); } catch (_) {}
+    try { await user.jwt(true); } catch {}
     return window.netlifyIdentity.currentUser() || user;
+  }
+
+  function updateNavForStatus(status) {
+    const membersLink = $('members-link');
+    if (!membersLink) return;
+    // Members tylko dla active/admin
+    membersLink.style.display = (status === 'active') ? '' : 'none';
   }
 
   async function updateDashboard() {
@@ -40,21 +50,21 @@
     const emailEl = $('user-email');
     const statusEl = $('user-status');
     const hintEl = $('status-hint');
-    const membersCta = $('members-cta');
 
     if (emailEl) emailEl.textContent = user.email || '—';
 
     const roles = (user.app_metadata && user.app_metadata.roles) || [];
     const status = statusFromRoles(roles);
-    if (statusEl) statusEl.textContent = status;
 
-    if (status === 'active') {
-      if (hintEl) hintEl.innerHTML = 'Masz aktywną subskrypcję. Wejdź do <a href="/members/">Members</a>.';
-      if (membersCta) membersCta.style.display = 'block';
-      const pay = $('payments');
-      if (pay) pay.style.display = 'none';
-    } else {
-      if (hintEl) hintEl.textContent = 'Status pending – wykup plan, aby uzyskać dostęp.';
+    if (statusEl) statusEl.textContent = status;
+    updateNavForStatus(status);
+
+    if (hintEl) {
+      if (status === 'active') {
+        hintEl.textContent = 'Masz aktywną rolę. Dostęp do strefy Members jest włączony.';
+      } else {
+        hintEl.textContent = 'Status pending – poproś administratora o aktywację konta.';
+      }
     }
   }
 
@@ -67,14 +77,17 @@
 
     if (!hasIdentity()) return;
 
+    // Po zalogowaniu przejdź do dashboardu
     window.netlifyIdentity.on('login', () => {
       window.location.href = '/dashboard.html';
     });
 
+    // Po wylogowaniu wróć na start
     window.netlifyIdentity.on('logout', () => {
       window.location.href = '/';
     });
 
+    // Jeśli jesteśmy na dashboardzie – wymuś login i pokaż dane
     if (location.pathname.endsWith('/dashboard.html')) {
       ensureLoggedIn().then(updateDashboard).catch(openLogin);
     }

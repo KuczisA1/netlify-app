@@ -1,17 +1,14 @@
 {
-"name": "netlify-stripe-members-starter",
-"private": true,
-"version": "1.0.0",
-"license": "MIT",
-"scripts": {
-"dev": "netlify dev",
-"build": "echo 'Static only'",
-"start": "netlify dev"
-},
-"dependencies": {
-"stripe": "^16.6.0"
-},
-"devDependencies": {
-"netlify-cli": "^17.36.1"
-}
+  "name": "netlify-identity-members-starter",
+  "private": true,
+  "version": "1.0.0",
+  "license": "MIT",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo \"Static only\"",
+    "start": "netlify dev"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.36.1"
+  }
 }
