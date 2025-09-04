@@ -5,9 +5,8 @@
   const $ = (id) => document.getElementById(id);
   const hasIdentity = () => typeof window !== 'undefined' && !!window.netlifyIdentity;
 
-  // ————— helpers: nf_jwt cookie —————
+  // ————— nf_jwt cookie —————
   function setJwtCookie(token) {
-    // cookie dostępne w całej domenie, sesyjne
     document.cookie = `nf_jwt=${token}; Path=/; Secure; SameSite=Lax`;
   }
   function clearJwtCookie() {
@@ -40,14 +39,11 @@
 
   async function paintUser() {
     if (!hasIdentity()) return;
-
     let user = window.netlifyIdentity.currentUser();
     if (!user) return;
 
-    // odśwież użytkownika i token (naprawia gubienie e-maila po powrocie)
+    // świeży user + token
     user = await refreshUser(user);
-
-    // ustaw odświeżone ciasteczko nf_jwt (ważne dla redirectów Netlify)
     try {
       const freshToken = await user.jwt();
       if (freshToken) setJwtCookie(freshToken);
@@ -72,10 +68,37 @@
     }
   }
 
+  // Client-side strażnik: bez logowania nie wejdzie na dashboard,
+  // a na members bez roliactive/admin też go cofniemy (belt & suspenders).
+  async function clientGuards() {
+    if (!hasIdentity()) return;
+    const path = location.pathname;
+
+    // poczekaj aż identity się zainicjalizuje
+    await new Promise((res) => setTimeout(res, 0));
+
+    const user = window.netlifyIdentity.currentUser();
+
+    // DASHBOARD: wymuś logowanie
+    if (path.endsWith('/dashboard.html')) {
+      if (!user) {
+        window.netlifyIdentity.open('login');
+        return;
+      }
+    }
+
+    // MEMBERS: dodatkowa klientowa weryfikacja (serwer już blokuje)
+    if (path.startsWith('/members')) {
+      if (!user) { location.replace('/unauthorized.html'); return; }
+      const roles = (user.app_metadata && user.app_metadata.roles) || [];
+      const status = statusFromRoles(roles);
+      if (status !== 'active') { location.replace('/unauthorized.html'); return; }
+    }
+  }
+
   function onReady() {
     if (!hasIdentity()) return;
 
-    // jawne init – pomaga gdy widget ładuje się wolniej
     try { window.netlifyIdentity.init(); } catch {}
 
     const loginBtn = $('login-btn');
@@ -90,22 +113,23 @@
       window.netlifyIdentity.logout();
     });
 
-    // Zdarzenia Identity
+    // Identity lifecycle
     window.netlifyIdentity.on('init', async (user) => {
-      // po każdym wejściu na stronę uzupełnij cookie nf_jwt i UI
       if (user) {
         try { setJwtCookie(await user.jwt()); } catch {}
       } else {
         clearJwtCookie();
       }
-      if (location.pathname.endsWith('/dashboard.html')) {
-        try { await ensureLoggedIn(); await paintUser(); } catch { window.netlifyIdentity.open('login'); }
+
+      await clientGuards();
+
+      if (location.pathname.endsWith('/dashboard.html') && user) {
+        await paintUser();
       }
     });
 
     window.netlifyIdentity.on('login', async (user) => {
       try { setJwtCookie(await user.jwt()); } catch {}
-      // po zalogowaniu przejdź na dashboard (gdzie UI odświeży się samo)
       window.location.href = '/dashboard.html';
     });
 
@@ -114,10 +138,12 @@
       window.location.href = '/';
     });
 
-    // Jeśli Identity zdążył się zainicjalizować wcześniej:
-    if (location.pathname.endsWith('/dashboard.html')) {
-      ensureLoggedIn().then(paintUser).catch(() => window.netlifyIdentity.open('login'));
-    }
+    // Jeśli init już się wydarzył
+    clientGuards().then(() => {
+      if (location.pathname.endsWith('/dashboard.html')) {
+        ensureLoggedIn().then(paintUser).catch(() => window.netlifyIdentity.open('login'));
+      }
+    });
   }
 
   document.addEventListener('DOMContentLoaded', onReady);
