@@ -1,0 +1,28 @@
+[build]
+publish = "public"
+functions = "netlify/functions"
+
+
+# Role-based access do folderu /members
+# Tylko role `active` i `admin` mają dostęp.
+[[redirects]]
+from = "/members/*"
+to = "/members/:splat"
+status = 200
+force = true
+conditions = { Role = ["active", "admin"] }
+
+
+# Fallback dla reszty: przekieruj do dashboardu (tam pokażemy info o statusie / loginie)
+[[redirects]]
+from = "/members/*"
+to = "/dashboard.html"
+status = 302
+
+
+# Opcjonalnie: wymuś HTTPS
+[[redirects]]
+from = "http://*"
+to = "https://:splat"
+status = 301
+force = true

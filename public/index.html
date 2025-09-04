@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Aplikacja – logowanie i rejestracja</title>
+<link rel="stylesheet" href="/assets/styles.css" />
+<script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
+<script defer src="/assets/js/auth.js"></script>
+
+</head>
+<body>
+<div class="container">
+<header class="header">
+<div class="badge">Aplikacja</div>
+<nav>
+<a href="/dashboard.html">Dashboard</a>
+</nav>
+</header>
+
+
+<section class="hero card">
+<h1>Witaj w aplikacji</h1>
+<p>Zaloguj się lub załóż konto, aby przejść do dashboardu i wykupić dostęp do strefy <strong>Members</strong>.</p>
+<div>
+<button id="login-btn" class="btn btn-primary">Zaloguj / Zarejestruj</button>
+
+<a class="btn btn-ghost" href="/dashboard.html">Przejdź do dashboardu</a>
+</div>
+<p class="notice">Po rejestracji status konta = <span class="code">pending</span>. Po opłaceniu subskrypcji status zmienia się na <span class="code">active</span>.</p>
+</section>
+</div>
+</body>
+</html>
