@@ -2,7 +2,7 @@
   publish = "public"
   functions = "netlify/functions"
 
-# Members – tylko active/admin
+# MEMBERS – tylko dla active/admin (wymaga ciasteczka nf_jwt)
 [[redirects]]
   from = "/members/*"
   to = "/members/:splat"
@@ -10,12 +10,13 @@
   force = true
   conditions = { Role = ["active", "admin"] }
 
+# Fallback: jeśli brak roli → na stronę startową (lub dashboard, jak wolisz)
 [[redirects]]
   from = "/members/*"
-  to = "/dashboard.html"
+  to = "/"
   status = 302
 
-# Dashboard – dostęp tylko dla zalogowanych (pending/active/admin)
+# DASHBOARD – tylko zalogowani (pending/active/admin)
 [[redirects]]
   from = "/dashboard.html"
   to = "/dashboard.html"
@@ -28,9 +29,15 @@
   to = "/"
   status = 302
 
-# Wymuś HTTPS
+# HTTPS
 [[redirects]]
   from = "http://*"
   to = "https://:splat"
   status = 301
   force = true
+
+# Anty-cache dla members (żeby przeglądarka nie trzymała w incognito zasobów)
+[[headers]]
+  for = "/members/*"
+  [headers.values]
+    Cache-Control = "private, no-store, no-cache, must-revalidate"
