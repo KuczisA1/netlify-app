@@ -3,26 +3,137 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Aplikacja – start</title>
-  <link rel="stylesheet" href="/assets/styles.css" />
-  <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
-  <script defer src="/assets/js/auth.js"></script>
+  <title>Aplikacja – logowanie i rejestracja</title>
+  <link rel="stylesheet" href="/assets/style.css" />
+
+  <!-- GoTrue (Netlify Identity bez modala) -->
+  <script src="https://unpkg.com/gotrue-js@2/dist/GoTrue.min.js"></script>
 </head>
 <body>
-  <div class="container">
-    <header class="header">
-  <div class="badge">Aplikacja</div>
-  <nav>
-    <a id="dashboard-link" href="/dashboard.html" style="display:none">Dashboard</a>
-  </nav>
-</header>
+  <header class="site-header">
+    <div class="brand">Aplikacja</div>
+    <nav class="nav">
+      <a id="nav-dashboard" href="/dashboard.html" class="btn btn-ghost" style="display:none">Dashboard</a>
+      <button id="nav-login" class="btn">Logowanie</button>
+      <button id="nav-register" class="btn btn-secondary">Rejestracja</button>
+      <button id="nav-contact" class="btn btn-ghost">Contact</button>
+    </nav>
+  </header>
 
+  <main class="container">
+    <!-- Sekcja hero z tekstem i YouTube -->
+    <section id="hero" class="card hero">
+      <h1>Witaj w Aplikacji</h1>
+      <p class="sub">Zaloguj się lub utwórz konto, aby korzystać z panelu. Użytkownicy z rolą <span class="code">active</span> mają dostęp do strefy members.</p>
 
-    <section class="hero card">
-      <h1>Witaj</h1>
-      <p>Zaloguj się, aby przejść do dashboardu.</p>
-      <button class="btn btn-primary" id="login-btn">Zaloguj / Zarejestruj</button>
+      <div class="video-wrapper">
+        <!-- Autoplay działa, gdy film jest wyciszony -->
+        <iframe
+          id="yt"
+          src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&mute=1&playsinline=1&controls=0&loop=1&playlist=dQw4w9WgXcQ"
+          title="YouTube video"
+          frameborder="0"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          allowfullscreen
+        ></iframe>
+      </div>
+
+      <div class="cta">
+        <button id="cta-login" class="btn">Zaloguj się</button>
+        <button id="cta-register" class="btn btn-secondary">Zarejestruj się</button>
+      </div>
     </section>
-  </div>
+
+    <!-- Formularz logowania -->
+    <section id="login-section" class="card auth" hidden>
+      <h2>Logowanie</h2>
+      <form id="login-form" novalidate>
+        <div class="field">
+          <label for="login-email">Email</label>
+          <input id="login-email" name="email" type="email" autocomplete="email" required />
+        </div>
+        <div class="field">
+          <label for="login-password">Hasło</label>
+          <input id="login-password" name="password" type="password" autocomplete="current-password" required />
+        </div>
+        <div class="actions">
+          <button class="btn" type="submit">Zaloguj</button>
+          <button class="btn btn-ghost" type="button" data-cancel>Anuluj</button>
+        </div>
+        <p class="form-note">Nie masz konta? <a href="#" id="to-register">Zarejestruj się</a></p>
+        <p id="login-error" class="error" role="alert" hidden></p>
+      </form>
+    </section>
+
+    <!-- Formularz rejestracji -->
+    <section id="register-section" class="card auth" hidden>
+      <h2>Rejestracja</h2>
+      <form id="register-form" novalidate>
+        <div class="field">
+          <label for="register-email">Email</label>
+          <input id="register-email" name="email" type="email" autocomplete="email" required />
+        </div>
+        <div class="field">
+          <label for="register-password">Hasło</label>
+          <input id="register-password" name="password" type="password" autocomplete="new-password" minlength="6" required />
+        </div>
+        <div class="actions">
+          <button class="btn btn-secondary" type="submit">Utwórz konto</button>
+          <button class="btn btn-ghost" type="button" data-cancel>Anuluj</button>
+        </div>
+        <p class="form-note">Masz już konto? <a href="#" id="to-login">Zaloguj się</a></p>
+        <p id="register-error" class="error" role="alert" hidden></p>
+      </form>
+      <p class="notice">Po rejestracji otrzymasz rolę <span class="code">pending</span>. Admin może nadać rolę <span class="code">active</span>.</p>
+    </section>
+
+    <!-- Formularz kontaktowy Netlify Forms -->
+    <section id="contact-section" class="card" hidden>
+      <h2>Kontakt</h2>
+      <form
+        name="contact"
+        id="contact-form"
+        method="POST"
+        data-netlify="true"
+        netlify
+        netlify-honeypot="bot-field"
+        action="/?contact=ok"
+      >
+        <!-- Netlify Forms wymaga tego hiddena: -->
+        <input type="hidden" name="form-name" value="contact" />
+        <!-- Honeypot -->
+        <p class="hidden">
+          <label>Nie wypełniaj: <input name="bot-field" /></label>
+        </p>
+
+        <div class="field">
+          <label for="contact-name">Imię</label>
+          <input id="contact-name" type="text" name="name" required />
+        </div>
+
+        <div class="field">
+          <label for="contact-email">Email</label>
+          <input id="contact-email" type="email" name="email" required />
+        </div>
+
+        <div class="field">
+          <label for="contact-message">Wiadomość</label>
+          <textarea id="contact-message" name="message" rows="5" required></textarea>
+        </div>
+
+        <div class="actions">
+          <button class="btn" type="submit">Wyślij</button>
+          <button class="btn btn-ghost" type="button" data-cancel>Anuluj</button>
+        </div>
+        <p class="notice">Ten formularz wysyła zgłoszenia do Netlify Forms.</p>
+      </form>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <small>© 2025 Aplikacja</small>
+  </footer>
+
+  <script src="/assets/script.js" defer></script>
 </body>
 </html>
