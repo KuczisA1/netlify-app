@@ -54,3 +54,15 @@
   for = "/members/*"
   [headers.values]
     Cache-Control = "private, no-store, no-cache, must-revalidate"
+# Kanoniczny adres dashboardu to /dashboard.html
+[[redirects]]
+  from = "/dashboard"
+  to = "/dashboard.html"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/dashboard/"
+  to = "/dashboard.html"
+  status = 301
+  force = true
