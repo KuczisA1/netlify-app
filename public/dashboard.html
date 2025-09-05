@@ -11,14 +11,6 @@
 
     <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
     <script defer src="/assets/js/auth.js"></script>
-    <script>
-        const membersBtn = document.getElementById('members-link');
-        if (membersBtn) {
-        membersBtn.addEventListener('click', () => {
-            window.location.href = '/members/';
-        });
-        }
-    </script>
    </head>
 <body>
   <header>
@@ -29,7 +21,7 @@
         <li><a href="#">przycisk 2 itp.</a></li>
       </ul>
       <div class="buttons">
-        <input type="button" value="Wejdź do kursu" id="members-link" style="display:none">
+        <input type="button" value="Wejdź do kursu"id="members-link" data-href="/members/" style="display:none">
         <input type="button" id="logout-link" value="Wyloguj">
       </div>
     </nav>
@@ -50,4 +42,15 @@
     </div>
   </header>
 </body>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const btn = document.getElementById('members-link');
+  if (!btn) return;
+
+  btn.addEventListener('click', function () {
+    const url = btn.dataset.href || '/members/';
+    window.location.href = url; // lub: window.location.assign(url);
+  });
+});
+</script>
 </html>
