@@ -1,227 +1,285 @@
-<!doctype html>
-<html lang="pl">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Ustawienia konta</title>
+<!DOCTYPE html>
+<!-- Created By CodingLab - www.codinglabweb.com -->
+<html lang="pl" dir="ltr">
+  <head>
+    <meta charset="UTF-8">
+    <title> Panel Sterowania </title>
 
-  <!-- Jeśli masz ogólny CSS aplikacji, podlinkuj go tu -->
-  <link rel="stylesheet" href="/assets/styles.css" />
+    <link rel="stylesheet" href="assets/dashboard/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- Netlify Identity -->
-  <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
-</head>
+    <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
+    <script defer src="/assets/js/auth.js"></script>
+
+    <!-- Nadpisania bez zmiany style.css -->
+    <style>
+      /* Karta ma rosnąć z treścią, ale zachować minimalnie 85vh */
+      header{ height:auto !important; min-height:85vh !important; }
+
+      /* Bezpieczna szerokość i marginesy dla sekcji z treścią */
+      header .text-content{
+        width: min(680px, calc(100% - 100px)) !important;
+        margin: 28px 0 0 50px !important;
+      }
+
+      /* Odstęp między sekcjami */
+      header .text-content + .text-content{ margin-top: 24px !important; }
+
+      /* Na tablet/telefon – pełna szerokość z wewn. marginesami */
+      @media (max-width: 950px){
+        header{ width:95% !important; }
+        header .text-content{
+          width: calc(100% - 40px) !important;
+          margin: 20px 20px 0 20px !important;
+        }
+      }
+    </style>
+   </head>
 <body>
-  <div class="container">
-    <header class="header">
-      <div class="badge">Ustawienia konta</div>
-      <nav>
-        <a href="/">Start</a>
-        <a href="/dashboard.html">Dashboard</a>
-        <a href="#" id="logout-link">Wyloguj</a>
-      </nav>
-    </header>
+  <header>
+    <nav class="navbar">
+      <div class="logo"><a href="/">ChemDisk</a></div>
+      <ul class="menu">
+        <li><a href="/index.html">Strona Główkna</a></li>
+        <li><a href="/dashboard">Panel sterowania</a></li>
+      </ul>
+      <div class="buttons">
+        <input type="button" value="Wejdź do kursu" id="members-link" data-href="/members/" style="display:none">
+        <input type="button" id="logout-link" value="Wyloguj">
+      </div>
+    </nav>
 
-    <!-- Podgląd konta -->
-    <section class="card">
+    <!-- Twoje konto -->
+    <div class="text-content">
       <h2>Twoje konto</h2>
       <p>Email (aktualny): <strong id="email">—</strong></p>
       <p>Status: <span id="status" class="code">—</span></p>
-      <div id="status-hint" class="notice"></div>
-    </section>
+      <div id="status-hint" class="notice" style="margin-top:6px;"></div>
+    </div>
 
-    <!-- Edycja profilu -->
-    <section class="card">
-      <h3>Profil</h3>
-      <label for="display-name">Nazwa wyświetlana</label>
-      <input type="text" id="display-name" placeholder="np. Jan Kowalski" />
+    <!-- Profil -->
+    <div class="text-content">
+      <h2>Profil</h2>
+      <label for="display-name" style="display:block;margin-top:10px;">Nazwa wyświetlana</label>
+      <input
+        type="text"
+        id="display-name"
+        placeholder="np. Jan Kowalski"
+        style="display:block;width:100%;max-width:420px;padding:10px 12px;border-radius:12px;border:1px solid rgba(0,0,0,.15);background:rgba(255,255,255,.85);margin-top:6px;"
+      />
 
-      <label for="username">Nazwa użytkownika (username)</label>
-      <input type="text" id="username" placeholder="np. JanKowalski" />
-
-      <div style="margin-top:.75rem">
-        <input type="button" id="save-profile" value="Zapisz profil" />
-        <span id="profile-msg" class="notice"></span>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px;">
+        <input
+          type="button"
+          id="save-profile"
+          value="Zapisz profil"
+          style="outline:none;color:#f2f2f2;font-size:16px;font-weight:500;border-radius:12px;padding:8px 16px;border:none;cursor:pointer;background-image:linear-gradient(135deg,#ff9a9e 10%,#F6416C 100%);"
+        />
+        <span id="profile-msg" class="notice" style="min-height:1.2em;"></span>
       </div>
-    </section>
+    </div>
 
-    <!-- Zmiana hasła -->
-    <section class="card">
-      <h3>Hasło</h3>
-      <p>Wyślemy na Twój e-mail link do ustawienia nowego hasła.</p>
-      <input type="button" id="send-recovery" value="Wyślij link do zmiany hasła" />
-      <span id="pass-msg" class="notice"></span>
-    </section>
+    <!-- Hasło -->
+    <div class="text-content">
+      <h2>Hasło</h2>
+      <p style="margin-top:8px;">Wyślemy na Twój e-mail link do ustawienia nowego hasła.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px;">
+        <input
+          type="button"
+          id="send-recovery"
+          value="Wyślij link do zmiany hasła"
+          style="outline:none;color:#f2f2f2;font-size:16px;font-weight:500;border-radius:12px;padding:8px 16px;border:none;cursor:pointer;background-image:linear-gradient(135deg,#ff9a9e 10%,#F6416C 100%);"
+        />
+        <span id="pass-msg" class="notice" style="min-height:1.2em;"></span>
+      </div>
+    </div>
 
     <!-- Zmiana e-maila -->
-    <section class="card">
-      <h3>E-mail</h3>
-      <label for="new-email">Nowy e-mail</label>
-      <input type="email" id="new-email" placeholder="nowy@adres.pl" />
-      <div style="margin-top:.75rem">
-        <input type="button" id="save-email" value="Zmień e-mail" />
-        <span id="email-msg" class="notice"></span>
+    <div class="text-content">
+      <h2>E-mail</h2>
+      <label for="new-email" style="display:block;margin-top:10px;">Nowy e-mail</label>
+      <input
+        type="email"
+        id="new-email"
+        placeholder="nowy@adres.pl"
+        style="display:block;width:100%;max-width:420px;padding:10px 12px;border-radius:12px;border:1px solid rgba(0,0,0,.15);background:rgba(255,255,255,.85);margin-top:6px;"
+      />
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px;">
+        <input
+          type="button"
+          id="save-email"
+          value="Zmień e-mail"
+          style="outline:none;color:#f2f2f2;font-size:16px;font-weight:500;border-radius:12px;padding:8px 16px;border:none;cursor:pointer;background-image:linear-gradient(135deg,#ff9a9e 10%,#F6416C 100%);"
+        />
+        <span id="email-msg" class="notice" style="min-height:1.2em;"></span>
       </div>
-      <p class="muted">Uwaga: zmiana e-maila może wymagać potwierdzenia linkiem wysłanym na nowy adres.</p>
-    </section>
-  </div>
+      <p class="muted" style="margin-top:24px; margin-bottom: 20px;">Uwaga: zmiana e-maila może wymagać potwierdzenia linkiem wysłanym na nowy adres.</p>
+    </div>
+
+    <div class="play-button">
+      <span class="play">Tutorial</span>
+      <i class="fas fa-play"></i>
+    </div>
+  </header>
 
   <script>
-  (function () {
-    'use strict';
+    (function () {
+      'use strict';
+      const $ = (id) => document.getElementById(id);
+      const hasIdentity = () => typeof window !== 'undefined' && !!window.netlifyIdentity;
 
-    const $ = (id) => document.getElementById(id);
-    const hasIdentity = () => typeof window !== 'undefined' && !!window.netlifyIdentity;
-
-    const LOGIN_PATH = '/login/';
-
-    function statusFromRoles(roles) {
-      if (!Array.isArray(roles)) return 'pending';
-      if (roles.includes('admin') || roles.includes('active')) return 'active';
-      if (roles.includes('pending')) return 'pending';
-      return 'pending';
-    }
-
-    async function refreshUser(user) {
-      try { await user.jwt(true); } catch (e) {}
-      return window.netlifyIdentity.currentUser() || user;
-    }
-
-    function fillStatus(user) {
-      const roles = (user.app_metadata && user.app_metadata.roles) || [];
-      const status = statusFromRoles(roles);
-      const statusEl = $('status');
-      const hintEl = $('status-hint');
-      if (statusEl) statusEl.textContent = status;
-      if (hintEl) {
-        hintEl.textContent = (status === 'active')
-          ? 'Masz aktywną rolę. Dostęp do strefy Members jest włączony.'
-          : 'Status pending – poproś administratora o aktywację konta.';
+      // Pomocnik do blokowania przycisków podczas zapisu
+      function setBtnBusy(btn, busy) {
+        if (!btn) return;
+        btn.disabled = !!busy;
+        btn.style.opacity = busy ? '0.7' : '';
+        btn.style.pointerEvents = busy ? 'none' : '';
       }
-    }
 
-    function currentDisplayName(user) {
-      const md = user.user_metadata || {};
-      return md.name || md.full_name || '';
-    }
-
-    function currentUsername(user) {
-      const md = user.user_metadata || {};
-      return md.username || md.preferred_username || (user.email ? user.email.split('@')[0] : '');
-    }
-
-    async function paint() {
-      if (!hasIdentity()) return;
-      let user = window.netlifyIdentity.currentUser();
-      if (!user) {
-        window.location.replace(LOGIN_PATH);
-        return;
+      function statusFromRoles(roles) {
+        if (!Array.isArray(roles)) return 'pending';
+        if (roles.includes('admin') || roles.includes('active')) return 'active';
+        if (roles.includes('pending')) return 'pending';
+        return 'pending';
       }
-      user = await refreshUser(user);
 
-      // Podgląd
-      if ($('email')) $('email').textContent = user.email || '—';
-      fillStatus(user);
+      async function refreshUser(user) {
+        try { await user.jwt(true); } catch (e) {}
+        return window.netlifyIdentity.currentUser() || user;
+      }
 
-      // Profil
-      if ($('display-name')) $('display-name').value = currentDisplayName(user);
-      if ($('username')) $('username').value = currentUsername(user);
-    }
+      function fillStatus(user) {
+        const roles = (user.app_metadata && user.app_metadata.roles) || [];
+        const status = statusFromRoles(roles);
+        const statusEl = $('status');
+        const hintEl = $('status-hint');
+        if (statusEl) statusEl.textContent = status;
+        if (hintEl) {
+          hintEl.textContent = (status === 'active')
+            ? 'Masz aktywną rolę. Dostęp do strefy Members jest włączony.'
+            : 'Status pending – poproś administratora o aktywację konta.';
+        }
+      }
 
-    function bindEvents() {
-      const logout = $('logout-link');
-      if (logout) logout.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (hasIdentity()) window.netlifyIdentity.logout();
-      });
+      async function paint() {
+        if (!hasIdentity()) return;
+        let user = window.netlifyIdentity.currentUser();
+        if (!user) return;
 
-      const saveProfile = $('save-profile');
-      if (saveProfile) saveProfile.addEventListener('click', async () => {
-        const msg = $('profile-msg');
-        const name = ($('display-name')?.value || '').trim();
-        const username = ($('username')?.value || '').trim();
+        user = await refreshUser(user);
 
-        if (username && (username.length < 2 || username.length > 40)) {
-          if (msg) msg.textContent = 'Nazwa użytkownika powinna mieć 2–40 znaków.';
-          return;
+        if ($('email')) $('email').textContent = user.email || '—';
+        if ($('display-name')) {
+          const md = user.user_metadata || {};
+          $('display-name').value = md.name || md.full_name || '';
+        }
+        fillStatus(user);
+      }
+
+      function bindActions() {
+        // Wejdź do kursu (input z data-href)
+        const membersBtn = $('members-link');
+        if (membersBtn) {
+          membersBtn.addEventListener('click', function () {
+            const url = membersBtn.dataset.href || '/members/';
+            window.location.href = url;
+          });
         }
 
-        const user = window.netlifyIdentity.currentUser();
-        if (!user) { window.location.replace(LOGIN_PATH); return; }
-
-        saveProfile.disabled = true;
-        if (msg) msg.textContent = 'Zapisywanie...';
-
-        try {
-          await user.update({ data: { name, username } });
-          try { await user.jwt(true); } catch (e) {}
-          if (msg) msg.textContent = 'Zapisano.';
-        } catch (e) {
-          if (msg) msg.textContent = 'Błąd zapisu: ' + (e && e.message ? e.message : 'spróbuj ponownie');
-        } finally {
-          saveProfile.disabled = false;
-          paint();
-        }
-      });
-
-      const passBtn = $('send-recovery');
-      if (passBtn) passBtn.addEventListener('click', () => {
-        const msg = $('pass-msg');
-        if (!hasIdentity() || !window.netlifyIdentity.currentUser()) {
-          window.location.replace(LOGIN_PATH);
-          return;
-        }
-        // Otwiera modal Netlify z trybem "recovery" (wysyła mail resetu hasła)
-        window.netlifyIdentity.open('recovery');
-        if (msg) msg.textContent = 'Jeśli adres istnieje, wyślemy link do zmiany hasła.';
-      });
-
-      const emailBtn = $('save-email');
-      if (emailBtn) emailBtn.addEventListener('click', async () => {
-        const msg = $('email-msg');
-        const newEmail = ($('new-email')?.value || '').trim();
-        const user = window.netlifyIdentity.currentUser();
-        if (!user) { window.location.replace(LOGIN_PATH); return; }
-
-        if (!newEmail || !/^\S+@\S+\.\S+$/.test(newEmail)) {
-          if (msg) msg.textContent = 'Podaj poprawny adres e-mail.';
-          return;
+        // Wyloguj
+        const logoutBtn = $('logout-link');
+        if (logoutBtn) {
+          logoutBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            if (hasIdentity()) window.netlifyIdentity.logout();
+          });
         }
 
-        emailBtn.disabled = true;
-        if (msg) msg.textContent = 'Zapisywanie...';
+        // Zapis nazwy wyświetlanej
+        const saveProfile = $('save-profile');
+        if (saveProfile) {
+          saveProfile.addEventListener('click', async function () {
+            const msg = $('profile-msg');
+            const name = ($('display-name')?.value || '').trim();
+            const user = hasIdentity() && window.netlifyIdentity.currentUser();
+            if (!user) { msg && (msg.textContent = 'Musisz być zalogowany.'); return; }
 
-        try {
-          await user.update({ email: newEmail });
-          try { await user.jwt(true); } catch (e) {}
-          if ($('email')) $('email').textContent = newEmail;
-          if (msg) msg.textContent = 'Zmieniono e-mail. Sprawdź skrzynkę, może być wymagane potwierdzenie.';
-        } catch (e) {
-          if (msg) msg.textContent = 'Błąd zmiany e-maila: ' + (e && e.message ? e.message : 'spróbuj ponownie');
-        } finally {
-          emailBtn.disabled = false;
+            setBtnBusy(saveProfile, true);
+            msg && (msg.textContent = 'Zapisywanie...');
+            try {
+              await user.update({ data: { name } });
+              try { await user.jwt(true); } catch (e) {}
+              msg && (msg.textContent = 'Zapisano.');
+            } catch (e) {
+              msg && (msg.textContent = 'Błąd zapisu: ' + (e?.message || 'spróbuj ponownie'));
+            } finally {
+              setBtnBusy(saveProfile, false);
+              paint();
+            }
+          });
         }
+
+        // Reset hasła – wysłanie linku przez widget
+        const passBtn = $('send-recovery');
+        if (passBtn) {
+          passBtn.addEventListener('click', function () {
+            const msg = $('pass-msg');
+            if (!hasIdentity() || !window.netlifyIdentity.currentUser()) {
+              msg && (msg.textContent = 'Musisz być zalogowany.');
+              return;
+            }
+            window.netlifyIdentity.open('recovery');
+            msg && (msg.textContent = 'Jeśli adres istnieje, wyślemy link do zmiany hasła.');
+          });
+        }
+
+        // Zmiana e-maila
+        const emailBtn = $('save-email');
+        if (emailBtn) {
+          emailBtn.addEventListener('click', async function () {
+            const msg = $('email-msg');
+            const newEmail = ($('new-email')?.value || '').trim();
+            const user = hasIdentity() && window.netlifyIdentity.currentUser();
+
+            if (!user) { msg && (msg.textContent = 'Musisz być zalogowany.'); return; }
+            if (!newEmail || !/^\S+@\S+\.\S+$/.test(newEmail)) {
+              msg && (msg.textContent = 'Podaj poprawny adres e-mail.');
+              return;
+            }
+
+            setBtnBusy(emailBtn, true);
+            msg && (msg.textContent = 'Zapisywanie...');
+            try {
+              await user.update({ email: newEmail });
+              try { await user.jwt(true); } catch (e) {}
+              if ($('email')) $('email').textContent = newEmail;
+              msg && (msg.textContent = 'Zmieniono e-mail. Sprawdź skrzynkę, może być wymagane potwierdzenie.');
+            } catch (e) {
+              msg && (msg.textContent = 'Błąd zmiany e-maila: ' + (e?.message || 'spróbuj ponownie'));
+            } finally {
+              setBtnBusy(emailBtn, false);
+            }
+          });
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+        if (!hasIdentity()) return;
+        try { window.netlifyIdentity.init(); } catch (e) {}
+        bindActions();
+
+        window.netlifyIdentity.on('init',  () => paint());
+        window.netlifyIdentity.on('login', () => paint());
+        window.netlifyIdentity.on('logout', () => location.replace('/'));
+        window.addEventListener('pageshow', () => paint());
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') paint();
+        });
+
+        paint();
       });
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      if (!hasIdentity()) return;
-
-      try { window.netlifyIdentity.init(); } catch (e) {}
-      bindEvents();
-
-      // Reakcje na lifecycle Identity
-      window.netlifyIdentity.on('init', () => paint());
-      window.netlifyIdentity.on('login', () => paint());
-      window.netlifyIdentity.on('logout', () => { window.location.replace('/'); });
-      window.addEventListener('pageshow', () => paint());
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') paint();
-      });
-
-      paint(); // gdy widget już zainicjalizowany
-    });
-  })();
+    })();
   </script>
 </body>
 </html>
