@@ -44,13 +44,89 @@
 </body>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  const btn = document.getElementById('members-link');
-  if (!btn) return;
+  // --- Twój istniejący handler dla przycisku "Wejdź do kursu"
+  const membersBtn = document.getElementById('members-link');
+  if (membersBtn) {
+    membersBtn.addEventListener('click', function () {
+      const url = membersBtn.dataset.href || '/members/';
+      window.location.href = url;
+    });
+  }
 
-  btn.addEventListener('click', function () {
-    const url = btn.dataset.href || '/members/';
-    window.location.href = url; // lub: window.location.assign(url);
-  });
+  // --- Panel zmiany nazwy użytkownika
+  const panel   = document.getElementById('username-panel');
+  const input   = document.getElementById('username-input');
+  const saveBtn = document.getElementById('username-save');
+  const msg     = document.getElementById('username-msg');
+
+  function setAllUsernames(name) {
+    document.querySelectorAll('.js-username').forEach(el => {
+      el.textContent = name || '—';
+    });
+  }
+
+  function preferredUsername(user) {
+    const md = (user && user.user_metadata) || {};
+    return md.username ||
+           md.preferred_username ||
+           md.name ||
+           md.full_name ||
+           (user && user.email ? user.email.split('@')[0] : '');
+  }
+
+  function updateUsernamePanel(user) {
+    if (!panel) return;
+    if (user) {
+      panel.style.display = ''; // pokaż
+      // Podstaw wartość w input (jeśli wcześniej była ustawiona w metadata)
+      const md = user.user_metadata || {};
+      input && (input.value = md.username || md.preferred_username || '');
+      // Uzupełnij widoki powitalne
+      setAllUsernames(preferredUsername(user));
+    } else {
+      panel.style.display = 'none'; // ukryj, gdy nie zalogowany
+    }
+  }
+
+  // Podłącz do Netlify Identity (init/login/logout)
+  if (window.netlifyIdentity) {
+    window.netlifyIdentity.on('init',   updateUsernamePanel);
+    window.netlifyIdentity.on('login',  updateUsernamePanel);
+    window.netlifyIdentity.on('logout', updateUsernamePanel);
+    // Od razu spróbuj z obecnym stanem
+    updateUsernamePanel(window.netlifyIdentity.currentUser());
+  }
+
+  // Zapis nowej nazwy do user_metadata.username
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async function () {
+      const user = window.netlifyIdentity && window.netlifyIdentity.currentUser();
+      if (!user) { msg && (msg.textContent = 'Musisz być zalogowany.'); return; }
+
+      const newName = (input && input.value ? input.value.trim() : '');
+      if (!newName) { msg && (msg.textContent = 'Podaj nazwę użytkownika.'); return; }
+      if (newName.length < 2 || newName.length > 40) {
+        msg && (msg.textContent = 'Nazwa powinna mieć 2–40 znaków.');
+        return;
+      }
+
+      saveBtn.disabled = true;
+      msg && (msg.textContent = 'Zapisywanie...');
+
+      try {
+        await user.update({ data: { username: newName } });
+        try { await user.jwt(true); } catch (e) {}
+
+        // Odśwież widoki na stronie
+        setAllUsernames(newName);
+        msg && (msg.textContent = 'Zapisano.');
+      } catch (e) {
+        msg && (msg.textContent = 'Błąd zapisu: ' + (e && e.message ? e.message : 'spróbuj ponownie'));
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+  }
 });
 </script>
 </html>
