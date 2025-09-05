@@ -67,10 +67,6 @@
   status = 301
   force = true
 
-
-[build]
-  publish = "public"
-
 # Fallback 404: każda nieistniejąca ścieżka -> unauthorized.html (z kodem 404)
 [[redirects]]
   from = "/*"
