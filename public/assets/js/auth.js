@@ -48,6 +48,28 @@
     if (membersLink) membersLink.style.display = (status === 'active') ? '' : 'none';
   }
 
+  // ---- NAZWY UŻYTKOWNIKA ----
+  // Zbiera preferowaną nazwę do wyświetlenia oraz "username" (jeśli istnieje w metadata)
+  function deriveNames(user) {
+    const md = (user && user.user_metadata) || {};
+    const preferredDisplay =
+      md.name ||
+      md.full_name ||
+      md.display_name ||
+      (user && user.email ? user.email.split('@')[0] : '');
+
+    const username =
+      md.username ||
+      md.preferred_username ||
+      (preferredDisplay ? String(preferredDisplay).replace(/\s+/g, '') : '') ||
+      (user && user.email ? user.email.split('@')[0] : '');
+
+    return {
+      displayName: preferredDisplay || '',
+      username: username || ''
+    };
+  }
+
   async function paintUser() {
     if (painting) return;
     painting = true;
@@ -62,11 +84,19 @@
       updateAuthLinks(user);
 
       const emailEl = $('user-email');
+      const nameEl = $('user-name');          // <span id="user-name">—</span> (w Twoim HTML)
+      const unameEl = $('user-username');     // opcjonalnie: <span id="user-username">—</span>
       const statusEl = $('user-status');
       const hintEl = $('status-hint');
 
       if (emailEl) emailEl.textContent = user.email || '—';
 
+      // Ustal nazwy
+      const { displayName, username } = deriveNames(user);
+      if (nameEl)  nameEl.textContent  = displayName || '—';
+      if (unameEl) unameEl.textContent = username || '—';
+
+      // Status/role
       const roles = (user.app_metadata && user.app_metadata.roles) || [];
       const status = statusFromRoles(roles);
 
@@ -115,8 +145,6 @@
     const loginBtn = $('login-btn');
     if (loginBtn) {
       loginBtn.addEventListener('click', (e) => {
-        // jeśli to <a>, ten handler nie przeszkadza
-        // ale gdyby był <button>, to przeniesie na /login/
         if (loginBtn.tagName === 'BUTTON') {
           e.preventDefault();
           window.location.href = PATHS.login;
