@@ -1,32 +1,45 @@
-<!doctype html>
-<html lang="pl">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Dashboard</title>
-  <link rel="stylesheet" href="/assets/styles.css" />
-  <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
-  <script defer src="/assets/js/auth.js"></script>
-</head>
+<!DOCTYPE html>
+<!-- Created By CodingLab - www.codinglabweb.com -->
+<html lang="pl" dir="ltr">
+  <head>
+    <meta charset="UTF-8">
+    <title> Panel Sterowania </title>
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
+    <script defer src="/assets/js/auth.js"></script>
+   </head>
 <body>
-  <div class="container">
-    <header class="header">
-      <div class="badge">Dashboard</div>
-      <nav>
-        <a id="members-link" href="/members/" style="display:none">Members</a>
-        <a href="#" id="logout-link">Wyloguj</a>
-      </nav>
-    </header>
-
-    <section class="card">
-      <h2>Twoje konto</h2>
-      <p>Email: <span id="user-email">—</span></p>
-      <p>Nazwa użytkownika: <span id="user-username">—</span></p>
-
-      <p>Status: <span id="user-status" class="code">—</span></p>
+  <header>
+    <nav class="navbar">
+      <div class="logo"><a href="/">ChemDisk></a></div>
+      <ul class="menu">
+        <li><a href="#">przycisk 1</a></li>
+        <li><a href="#">przycisk 2 itp.</a></li>
+      </ul>
+      <div class="buttons">
+        <input type="button" value="Wejdź do kursu" id="members-link" href="/members/" style="display:none">
+        <input type="button" id="logout-link" value="Wyloguj">
+      </div>
+    </nav>
+    <div class="text-content">
+      <h2>Cześć,<br>witaj w naszej aplikacji</h2>
+      <p>W tym miejscu odbywać się będą płatności za pomocą bundla od stripe.com. opcje np. miesięczne półroczne, roczne itp.</p>
+    </div>
+    <div class="text-content">
+        <h1>Witaj, <span id="user-username">—</span></h1>
+        <p>Email: <span id="user-email">—</span></p>
+        <p>Nazwa użytkownika: <span id="user-username">—</span></p>
+        <p>Status: <span id="user-status" class="code">—</span></p>
       <div id="status-hint" class="notice"></div>
-    </section>
-
-  </div>
+    </div>
+    <div class="play-button">
+      <span class="play">Play Video</span>
+      <i class="fas fa-play" onclick="click()"></i>
+    </div>
+  </header>
 </body>
 </html>
