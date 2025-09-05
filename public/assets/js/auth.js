@@ -93,6 +93,10 @@
 
       // Ustal nazwy
       const { displayName, username } = deriveNames(user);
+      document.querySelectorAll('.js-username').forEach(el => {
+      el.textContent = username || '—';
+      });
+
       if (nameEl)  nameEl.textContent  = displayName || '—';
       if (unameEl) unameEl.textContent = username || '—';
 
