@@ -5,15 +5,6 @@
   const $ = (id) => document.getElementById(id);
   const hasIdentity = () => typeof window !== 'undefined' && !!window.netlifyIdentity;
 
-  // ŚCIEŻKI (dopasuj przy zmianach)
-  const PATHS = {
-    home: ['/', '/index.html'],
-    dashboard: '/dashboard.html',
-    login: '/login/', // ważne: tu zakładamy public/login/index.html
-  };
-  const onHome = () => PATHS.home.includes(location.pathname);
-  const onDashboard = () => location.pathname === PATHS.dashboard;
-
   let bootstrapped = false;
   let painting = false;
 
@@ -34,8 +25,16 @@
   }
 
   function updateAuthLinks(user) {
+    // Pokaż „Dashboard” na stronie startowej tylko, gdy user jest zalogowany
     const dashboardLink = $('dashboard-link');
     if (dashboardLink) dashboardLink.style.display = user ? '' : 'none';
+  }
+
+  async function ensureLoggedIn() {
+    if (!hasIdentity()) throw new Error('identity-not-loaded');
+    const user = window.netlifyIdentity.currentUser();
+    if (user) return user;
+    throw new Error('no-user');
   }
 
   async function refreshUser(user) {
@@ -54,11 +53,15 @@
     try {
       if (!hasIdentity()) return;
       let user = window.netlifyIdentity.currentUser();
-      updateAuthLinks(user);
+      updateAuthLinks(user); // pokaż/ukryj Dashboard na index.html
+
       if (!user) return;
 
+      // świeży user + token
       user = await refreshUser(user);
       try { setJwtCookie(await user.jwt()); } catch {}
+
+      // po odświeżeniu aktualizujemy też link na index
       updateAuthLinks(user);
 
       const emailEl = $('user-email');
@@ -83,25 +86,15 @@
     }
   }
 
-  // --- OCHRONA TRAS (bez popupa) ---
-  async function guardAndPaint() {
+  async function guardAndPaintDashboard() {
     if (!hasIdentity()) return;
+    if (!location.pathname.endsWith('/dashboard.html')) return;
 
-    const user = window.netlifyIdentity.currentUser();
-
-    // 1) Strona główna: jeśli zalogowany → dashboard
-    if (onHome() && user) {
-      window.location.replace(PATHS.dashboard);
-      return;
-    }
-
-    // 2) Dashboard: jeśli niezalogowany → /login/
-    if (onDashboard()) {
-      if (!user) {
-        window.location.replace(PATHS.login);
-        return;
-      }
-      await paintUser();
+    try {
+      await ensureLoggedIn();   // jeśli nie — wyjątek
+      await paintUser();        // zawsze malujemy po wejściu/po F5/po powrocie
+    } catch {
+      try { window.netlifyIdentity.open('login'); } catch {}
     }
   }
 
@@ -111,18 +104,11 @@
 
     try { window.netlifyIdentity.init(); } catch {}
 
-    // Klik przycisku na stronie głównej → bez modala idziemy na /login/
     const loginBtn = $('login-btn');
-    if (loginBtn) {
-      loginBtn.addEventListener('click', (e) => {
-        // jeśli to <a>, ten handler nie przeszkadza
-        // ale gdyby był <button>, to przeniesie na /login/
-        if (loginBtn.tagName === 'BUTTON') {
-          e.preventDefault();
-          window.location.href = PATHS.login;
-        }
-      });
-    }
+    if (loginBtn) loginBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      window.netlifyIdentity.open('login');
+    });
 
     const logoutLink = $('logout-link');
     if (logoutLink) logoutLink.addEventListener('click', (e) => {
@@ -138,38 +124,41 @@
       } else {
         clearJwtCookie();
       }
-      await guardAndPaint();
+      await guardAndPaintDashboard();
     });
 
     window.netlifyIdentity.on('login', async (user) => {
       updateAuthLinks(user);
       try { setJwtCookie(await user.jwt()); } catch {}
-      window.location.replace(PATHS.dashboard);
+      window.location.href = '/dashboard.html';
     });
 
     window.netlifyIdentity.on('logout', () => {
       updateAuthLinks(null);
       clearJwtCookie();
-      window.location.replace(PATHS.home[0]); // '/'
+      window.location.href = '/';
     });
 
-    // BFCache / powroty / widoczność / wielokarty
+    // Obsługa „powrotu” i zmian widoczności
     window.addEventListener('pageshow', async () => {
-      await guardAndPaint();
+      // po powrocie z /members/ lub po BFCache
+      await guardAndPaintDashboard();
+      // zaktualizuj link na index
       updateAuthLinks(window.netlifyIdentity.currentUser());
     });
 
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState === 'visible') {
-        await guardAndPaint();
+        await guardAndPaintDashboard();
         updateAuthLinks(window.netlifyIdentity.currentUser());
       }
     });
 
+    // gdy w innej karcie nastąpi login/logout
     window.addEventListener('storage', async (e) => {
       if (e.key && e.key.includes('gotrue.user')) {
         updateAuthLinks(window.netlifyIdentity.currentUser());
-        await guardAndPaint();
+        await guardAndPaintDashboard();
       }
     });
   }
@@ -178,7 +167,8 @@
   document.addEventListener('DOMContentLoaded', async () => {
     if (!hasIdentity()) return;
     bootstrap();
+    // pierwsze wejście
     updateAuthLinks(window.netlifyIdentity.currentUser());
-    await guardAndPaint();
+    await guardAndPaintDashboard();
   });
 })();
