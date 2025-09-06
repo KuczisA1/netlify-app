@@ -1,22 +1,51 @@
 // netlify/functions/slides-key.js
 exports.handler = async (event) => {
   try {
-    const idKeyRaw = (event.queryStringParameters && event.queryStringParameters.id) || '';
-    const idKey = idKeyRaw.trim();
-    // Użyj domyślnej SLIDES_ID, albo nazwanej SLIDES_<IDKEY>
-    const envName = idKey ? `SLIDES_${idKey.toUpperCase()}` : 'SLIDES_ID';
+    const q = event.queryStringParameters || {};
+    const raw = (q.id || '').trim();
+    const mode = (q.mode || 'preview').trim().toLowerCase(); // preview|present|embed
 
-    const raw = process.env[envName];
-    if (!raw) {
-      return json(404, { error: `Brak zmiennej środowiskowej: ${envName}` });
+    let source = null;   // opis skąd bierzemy ID
+    let id = null;       // ID prezentacji
+
+    // 1) Jeśli podano pełny URL → wyciągnij ID
+    const fromUrl = extractIdFromUrl(raw);
+    if (fromUrl) {
+      id = fromUrl;
+      source = 'query:url';
     }
 
-    const embedUrl = toEmbedUrl(raw);
-    if (!embedUrl) {
-      return json(400, { error: 'Nie udało się zbudować adresu /embed z podanej wartości.' });
+    // 2) Jeśli wygląda na czyste ID (ciąg znaków) → użyj bez środowiska
+    if (!id && isLikelyId(raw)) {
+      id = raw;
+      source = 'query:id';
     }
 
-    return json(200, { key: idKey || 'DEFAULT', embedUrl });
+    // 3) W innym przypadku potraktuj jako KLUCZ środowiskowy: SLIDES_<KEY>
+    if (!id && raw) {
+      const envName = `SLIDES_${raw.toUpperCase()}`;
+      const envVal = process.env[envName];
+      if (!envVal) return json(404, { error: `Brak zmiennej: ${envName}` });
+      id = extractIdFromUrl(envVal) || (isLikelyId(envVal) ? envVal : null);
+      if (!id) return json(400, { error: `Nie udało się wyciągnąć ID z ${envName}` });
+      source = `env:${envName}`;
+    }
+
+    // 4) Gdy nic nie podano → domyślna SLIDES_ID
+    if (!id && !raw) {
+      const envVal = process.env.SLIDES_ID;
+      if (!envVal) return json(404, { error: 'Brak zmiennej: SLIDES_ID' });
+      id = extractIdFromUrl(envVal) || (isLikelyId(envVal) ? envVal : null);
+      if (!id) return json(400, { error: 'Nie udało się wyciągnąć ID z SLIDES_ID' });
+      source = 'env:SLIDES_ID';
+    }
+
+    const urls = buildUrls(id);
+    const chosen = mode === 'present' ? urls.presentUrl
+                 : mode === 'embed'   ? urls.embedUrl
+                 : urls.previewUrl; // domyślnie preview (ma kontrolki)
+
+    return json(200, { id, source, mode, url: chosen, ...urls });
   } catch (err) {
     console.error(err);
     return json(500, { error: 'Błąd serwera funkcji.' });
@@ -26,40 +55,26 @@ exports.handler = async (event) => {
 function json(statusCode, bodyObj) {
   return {
     statusCode,
-    headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': 'no-store'
-    },
-    body: JSON.stringify(bodyObj)
+    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
+    body: JSON.stringify(bodyObj),
   };
 }
 
-function toEmbedUrl(input) {
-  // Wejście może być: samo ID albo pełny link do Slides.
-  const trimmed = String(input).trim();
-
-  // 1) Jeśli to pełny URL, spróbuj wyciągnąć ID.
-  // Obsługa: .../presentation/d/<ID>/... (edit, view, pub itp.)
+function extractIdFromUrl(input) {
   try {
-    const url = new URL(trimmed);
-    const m = url.pathname.match(/\/presentation\/d\/([\w-]+)/i);
-    if (m && m[1]) {
-      const id = m[1];
-      return buildEmbed(id);
-    }
-  } catch {
-    // nie był to URL – traktuj jako samo ID
-  }
-
-  // 2) Zakładamy, że to samo ID
-  if (/^[\w-]+$/.test(trimmed)) {
-    return buildEmbed(trimmed);
-  }
-
-  return null;
+    const u = new URL(input);
+    const m = u.pathname.match(/\/presentation\/d\/([\w-]+)/i);
+    return m && m[1] ? m[1] : null;
+  } catch { return null; }
 }
 
-function buildEmbed(id) {
-  // rm=minimal -> mniej UI; start/loop = false; delayms bez znaczenia gdy brak autoplay
-  return `https://docs.google.com/presentation/d/${id}/embed?start=false&loop=false&rm=minimal`;
+function isLikelyId(s) {
+  return /^[A-Za-z0-9_-]{10,}$/.test(s); // Slides ID zwykle dłuższe; bezpieczny heurystyk
+}
+
+function buildUrls(id) {
+  const embed   = `https://docs.google.com/presentation/d/${id}/embed?start=false&loop=false&rm=minimal`;
+  const preview = `https://docs.google.com/presentation/d/${id}/preview`;
+  const present = `https://docs.google.com/presentation/d/${id}/present`;
+  return { embedUrl: embed, previewUrl: preview, presentUrl: present };
 }
