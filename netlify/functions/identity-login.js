@@ -1,18 +1,31 @@
 // netlify/functions/identity-login.js
+const crypto = require('crypto');
+
 exports.handler = async (event) => {
   try {
     const payload = JSON.parse(event.body || "{}");
     const user = payload && payload.user;
-    const roles = (user && user.app_metadata && user.app_metadata.roles) || [];
-    // Jeśli role już są — nic nie rób
-    if (Array.isArray(roles) && roles.length > 0) {
-      return { statusCode: 200, body: "{}" };
+    if (!user) return { statusCode: 400, body: "No user in payload" };
+
+    const newSession =
+      (crypto.randomUUID && crypto.randomUUID()) ||
+      crypto.randomBytes(16).toString('hex');
+
+    const roles = (user.app_metadata && user.app_metadata.roles) || [];
+    const hasRoles = Array.isArray(roles) && roles.length > 0;
+
+    const resp = {
+      // przechowujemy wersję sesji na koncie
+      user_metadata: { current_session: newSession }
+    };
+    if (!hasRoles) {
+      resp.app_metadata = { roles: ["pending"] };
     }
-    // Brak ról → doszczep "pending"
+
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ app_metadata: { roles: ["pending"] } })
+      body: JSON.stringify(resp)
     };
   } catch {
     return { statusCode: 200, body: "{}" };

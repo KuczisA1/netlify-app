@@ -29,7 +29,9 @@
   // ===== COOKIE nf_jwt =====
   function setJwtCookie(token) {
     if (!token) return;
-    document.cookie = `nf_jwt=${token}; Path=/; Secure; SameSite=Lax; Max-Age=3600`;
+    const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    const secure = isLocal ? '' : ' Secure;';
+    document.cookie = `nf_jwt=${token}; Path=/;${secure} SameSite=Lax; Max-Age=3600`;
   }
   function clearJwtCookie() {
     document.cookie = 'nf_jwt=; Path=/; Max-Age=0; Secure; SameSite=Lax';
@@ -163,6 +165,74 @@
     location.replace(path); // bez dorzucania historii
   }
 
+  // ======== CROSS-DEVICE LOGOUT (wyloguj jeśli zalogowano się gdzie indziej) ========
+  // >>> Aby WYŁĄCZYĆ, zakomentuj cały ten blok LUB ustaw flagę na false:
+  const ENABLE_CROSS_DEVICE_LOGOUT = true;
+
+  let stopSessionWatcher = null;
+
+  function getLocalSessionVer()   { return localStorage.getItem('cd_session_ver') || ''; }
+  function setLocalSessionVer(v)  { if (v) localStorage.setItem('cd_session_ver', v); }
+  function clearLocalSessionVer() { localStorage.removeItem('cd_session_ver'); }
+
+  async function fetchRemoteUser(token) {
+    const res = await fetch('/.netlify/identity/user', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) throw new Error('identity/user fetch failed');
+    return res.json();
+  }
+
+  async function seedSessionVersion() {
+    if (!ENABLE_CROSS_DEVICE_LOGOUT) return;
+    const ni = window.netlifyIdentity;
+    const u = ni.currentUser();
+    if (!u) { clearLocalSessionVer(); return; }
+    try {
+      const token = await u.jwt(true);
+      const data  = await fetchRemoteUser(token);
+      const ver   = data && data.user_metadata && data.user_metadata.current_session;
+      if (ver) setLocalSessionVer(ver);
+    } catch {}
+  }
+
+  function startSessionWatcher() {
+    if (!ENABLE_CROSS_DEVICE_LOGOUT) return () => {};
+    let active = true;
+
+    async function check() {
+      if (!active || !hasIdentity()) return;
+      const ni = window.netlifyIdentity;
+      const u  = ni.currentUser();
+      if (!u) return;
+      try {
+        const token = await u.jwt(true);
+        const data  = await fetchRemoteUser(token);
+        const serverVer = data && data.user_metadata && data.user_metadata.current_session;
+        const localVer  = getLocalSessionVer();
+        if (serverVer && localVer && serverVer !== localVer) {
+          // Inna sesja zalogowana → wyloguj tutaj
+          clearJwtCookie();
+          clearLocalSessionVer();
+          try { await ni.logout(); } catch {}
+          safeGo(`${norm(PATHS.loginBase)}/`);
+        }
+      } catch {}
+    }
+
+    const id = setInterval(check, 30000); // co 30s
+    check(); // od razu
+    const onVis = () => { if (document.visibilityState === 'visible') check(); };
+    document.addEventListener('visibilitychange', onVis);
+
+    return () => {
+      active = false;
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }
+  // ======== /CROSS-DEVICE LOGOUT ========
+
   // ===== Guard właściwy =====
   async function guardAndPaintCore() {
     if (!hasIdentity()) return;
@@ -239,8 +309,13 @@
       if (user) {
         const ok = await ensureFreshJwtCookieOrLogout();
         if (!ok) { await runGuard(); return; }
+        await seedSessionVersion();
+        if (stopSessionWatcher) stopSessionWatcher();
+        stopSessionWatcher = startSessionWatcher();
       } else {
         clearJwtCookie();
+        clearLocalSessionVer();
+        if (stopSessionWatcher) { stopSessionWatcher(); stopSessionWatcher = null; }
       }
       await runGuard();
     });
@@ -249,16 +324,21 @@
       updateAuthLinks(user);
       const ok = await ensureFreshJwtCookieOrLogout();
       if (!ok) return;
+      await seedSessionVersion();
+      if (stopSessionWatcher) stopSessionWatcher();
+      stopSessionWatcher = startSessionWatcher();
       safeGo(PATHS.dashboard);
     });
 
     window.netlifyIdentity.on('logout', () => {
       updateAuthLinks(null);
       clearJwtCookie();
+      clearLocalSessionVer();
+      if (stopSessionWatcher) { stopSessionWatcher(); stopSessionWatcher = null; }
       safeGo(PATHS.home[0]); // '/'
     });
 
-    // ===== Zdarzenia środowiskowe (delikatnie) =====
+    // ===== Zdarzenia środowiskowe =====
     window.addEventListener('pageshow', () => { runGuard(); });
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') runGuard();
