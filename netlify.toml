@@ -100,6 +100,6 @@
 
 # --- Brak cache także dla samej funkcji
 [[headers]]
-  for = "/.netlify/functions/slides-key"
+  for = "/members/modules/slides/*"
   [headers.values]
     Cache-Control = "no-store"
