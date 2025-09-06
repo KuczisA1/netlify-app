@@ -1,80 +1,80 @@
 [build]
-  publish = "public"
+  publish   = "public"
   functions = "netlify/functions"
 
-# ===== MEMBERS: tylko active/admin =====
+# --- API (musi być wysoko, przed catch-all) ---
+[[redirects]]
+  from = "/api/chat"
+  to   = "/.netlify/functions/chat"
+  status = 200
+  force  = true
+
+# --- HTTPS wymuszenie ---
+[[redirects]]
+  from = "http://*"
+  to   = "https://:splat"
+  status = 301
+  force  = true
+
+# --- MEMBERS: tylko active/admin ---
 [[redirects]]
   from = "/members/*"
-  to = "/members/:splat"
+  to   = "/members/:splat"
   status = 200
-  force = true
+  force  = true
   conditions = { Role = ["active", "admin"] }
 
 [[redirects]]
   from = "/members/*"
-  to = "/unauthorized.html"
+  to   = "/unauthorized.html"
   status = 401
-  force = true
+  force  = true
 
-# ===== DASHBOARD: tylko zalogowani (pending/active/admin) =====
+# --- DASHBOARD: pending/active/admin ---
 [[redirects]]
   from = "/dashboard.html"
-  to = "/dashboard.html"
+  to   = "/dashboard.html"
   status = 200
-  force = true
+  force  = true
   conditions = { Role = ["pending", "active", "admin"] }
 
 [[redirects]]
   from = "/dashboard.html"
-  to = "/"
+  to   = "/"
   status = 302
-  force = true
+  force  = true
 
-# HTTPS
+# Kanoniczny adres dashboardu
 [[redirects]]
-  from = "http://*"
-  to = "https://:splat"
+  from = "/dashboard"
+  to   = "/dashboard.html"
   status = 301
-  force = true
+  force  = true
 
-# Bez cache dla members
+[[redirects]]
+  from = "/dashboard/"
+  to   = "/dashboard.html"
+  status = 301
+  force  = true
+
+# --- Nagłówki: bez cache dla members i dashboardu ---
 [[headers]]
   for = "/members/*"
   [headers.values]
     Cache-Control = "private, no-store, no-cache, must-revalidate"
 
-# Nie buforuj dashboardu - wymusza pełne odświeżenie po powrocie
 [[headers]]
   for = "/dashboard.html"
   [headers.values]
     Cache-Control = "private, no-store, no-cache, must-revalidate"
 
-# (Już masz) bez cache dla members
-[[headers]]
-  for = "/members/*"
-  [headers.values]
-    Cache-Control = "private, no-store, no-cache, must-revalidate"
-# Kanoniczny adres dashboardu to /dashboard.html
-[[redirects]]
-  from = "/dashboard"
-  to = "/dashboard.html"
-  status = 301
-  force = true
-
-[[redirects]]
-  from = "/dashboard/"
-  to = "/dashboard.html"
-  status = 301
-  force = true
-
-# Fallback 404: każda nieistniejąca ścieżka -> unauthorized.html (z kodem 404)
+# --- Fallback 404 (MUSI BYĆ NA KOŃCU) ---
 [[redirects]]
   from = "/*"
-  to = "/unauthorized.html"
+  to   = "/unauthorized.html"
   status = 404
 
-#chat maturalny
-[[redirects]]
-  from = "/api/chat"
-  to   = "/.netlify/functions/chat"
-  status = 200
+# (opcjonalnie ułatwia lokalne `netlify dev`)
+[dev]
+  publish   = "public"
+  functions = "netlify/functions"
