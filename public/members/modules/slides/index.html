@@ -6,42 +6,75 @@
   <title>ChemDisk – Slides</title>
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <style>
-    html,body{height:100%;margin:0}
+    :root{--bg:#0b1020;--panel:#111827cc;--txt:#e5e7eb;--mut:#94a3b8}
+    html,body{height:100%;margin:0;background:#000}
     .stage{position:fixed;inset:0}
-    iframe{width:100%;height:100%;border:0;display:block}
-    .error{display:grid;place-items:center;height:100%;font:16px/1.4 system-ui,sans-serif;padding:24px;text-align:center}
+    iframe{width:100%;height:100%;border:0;display:block;background:#000}
+    .bar{
+      position:fixed;left:50%;bottom:12px;transform:translateX(-50%);
+      display:flex;gap:8px;align-items:center;
+      background:var(--panel);backdrop-filter:blur(8px);
+      border:1px solid #1f2937;border-radius:14px;padding:8px 10px;z-index:5
+    }
+    .btn{
+      appearance:none;border:1px solid #334155;border-radius:10px;
+      padding:6px 10px;background:#0b1220;color:var(--txt);font:500 13px/1 system-ui,sans-serif;
+      cursor:pointer
+    }
+    .btn[aria-current="true"]{border-color:#60a5fa}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .link{color:#93c5fd;text-decoration:none;font:500 13px/1 system-ui,sans-serif}
+    .hint{color:var(--mut);font:12px/1.2 system-ui,sans-serif;margin-left:6px}
+    /* Nasz „laser” (nakładka) */
+    #laserDot{
+      position:fixed;top:0;left:0;width:16px;height:16px;border-radius:999px;
+      background:radial-gradient(circle at 30% 30%, #ffb3b3 0%, #ff4d4d 35%, #c00000 60%, #800000 100%);
+      box-shadow:0 0 12px 6px #ff33334d;mix-blend-mode:screen;
+      pointer-events:none;opacity:0;transform:translate(-50%,-50%);z-index:4;transition:opacity .15s;
+    }
+    #laserDot.on{opacity:.95}
+    .error{display:grid;place-items:center;height:100%;font:16px/1.4 system-ui,sans-serif;padding:24px;text-align:center;color:#e5e7eb;background:#0b1020}
     .error h1{margin:0 0 8px;font-size:20px}
-    code{background:#f3f4f6;padding:2px 6px;border-radius:6px}
+    code{background:#111827;padding:2px 6px;border-radius:6px;color:#e5e7eb}
   </style>
 </head>
 <body>
   <div id="stage" class="stage"><noscript>Włącz JavaScript, aby wczytać prezentację.</noscript></div>
+
+  <!-- Pasek sterowania -->
+  <div class="bar" id="bar" hidden>
+    <button class="btn" id="modeEmbed"  data-mode="embed">Embed</button>
+    <button class="btn" id="modePreview" data-mode="preview">Preview</button>
+    <button class="btn" id="modePresent" data-mode="present">Present</button>
+    <a class="link" id="openPresent" href="#" rel="noopener" target="_blank">Otwórz w nowej karcie (Present)</a>
+    <button class="btn" id="laserToggle" aria-pressed="false">Laser</button>
+    <span class="hint">W trybie Present wciśnij w slajdach klawisz <b>L</b>, aby włączyć wbudowany laser.</span>
+  </div>
+  <div id="laserDot"></div>
 
   <script>
   (async () => {
     const stage = document.getElementById('stage');
     const qs = new URLSearchParams(window.location.search);
     const key = (qs.get('id') || '').trim();
+    const ui  = (qs.get('ui') || 'embed').trim().toLowerCase(); // embed|preview|present
 
-    // Schowaj parametry po odczycie (czyściej, mniej „śladów”).
-    if (key) history.replaceState(null, '', window.location.pathname);
+    // schowaj parametry po starcie (estetyka)
+    if (key || qs.get('ui')) history.replaceState(null, '', window.location.pathname);
 
-    const endpoint = '/.netlify/functions/slides-key' + (key ? `?id=${encodeURIComponent(key)}` : '');
+    const endpoint = '/.netlify/functions/slides-key' +
+      (key ? `?id=${encodeURIComponent(key)}` : '') +
+      (ui  ? `${key ? '&' : '?'}ui=${encodeURIComponent(ui)}` : '');
 
+    let data;
     try {
       const resp = await fetch(endpoint, { cache: 'no-store' });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      if (!data.embedUrl) throw new Error('Brak embedUrl z funkcji.');
+      data = await resp.json();
+      if (!data.url) throw new Error('Brak URL-a z funkcji.');
 
-      const iframe = document.createElement('iframe');
-      iframe.allowFullscreen = true;
-      iframe.referrerPolicy = 'strict-origin-when-cross-origin';
-      // Minimalne uprawnienia (nie zablokuje pobierania w 100%, ale ogranicza):
-      iframe.sandbox = 'allow-scripts allow-same-origin allow-presentation';
-      iframe.src = data.embedUrl; // już zbudowany /embed + rm=minimal
-      stage.innerHTML = '';
-      stage.appendChild(iframe);
+      mountIframe(data.url);
+      setupControls(data, ui);
     } catch (e) {
       stage.innerHTML = `
         <div class="error">
@@ -52,6 +85,59 @@
           </div>
         </div>`;
       console.error(e);
+    }
+
+    function mountIframe(url){
+      const iframe = document.createElement('iframe');
+      iframe.allowFullscreen = true;
+      iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+      iframe.sandbox = 'allow-scripts allow-same-origin allow-presentation';
+      iframe.src = url;
+      stage.innerHTML = '';
+      stage.appendChild(iframe);
+    }
+
+    function setupControls(data, current){
+      const bar = document.getElementById('bar');
+      bar.hidden = false;
+
+      const open = document.getElementById('openPresent');
+      open.href = data.presentUrl; // zawsze dostępny
+
+      // podświetl aktualny tryb
+      const btns = {
+        embed:  document.getElementById('modeEmbed'),
+        preview:document.getElementById('modePreview'),
+        present:document.getElementById('modePresent'),
+      };
+      Object.values(btns).forEach(b=>b.setAttribute('aria-current','false'));
+      (btns[current] || btns.embed).setAttribute('aria-current','true');
+
+      // przełączanie trybu bez przeładowania całej strony
+      for (const [mode, btn] of Object.entries(btns)){
+        btn.onclick = () => {
+          if (mode === 'embed')   mountIframe(data.embedUrl);
+          if (mode === 'preview') mountIframe(data.previewUrl);
+          if (mode === 'present') mountIframe(data.presentUrl);
+          Object.values(btns).forEach(b=>b.setAttribute('aria-current','false'));
+          btn.setAttribute('aria-current','true');
+        };
+      }
+
+      // Nasz „laser” – nakładka (nie blokuje klików do iframa)
+      const dot = document.getElementById('laserDot');
+      const toggle = document.getElementById('laserToggle');
+      let laserOn = false;
+
+      toggle.onclick = () => {
+        laserOn = !laserOn;
+        toggle.setAttribute('aria-pressed', String(laserOn));
+        dot.classList.toggle('on', laserOn);
+      };
+      window.addEventListener('mousemove', e => {
+        if (!laserOn) return;
+        dot.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
+      });
     }
   })();
   </script>
