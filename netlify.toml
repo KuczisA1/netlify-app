@@ -72,3 +72,9 @@
   from = "/*"
   to = "/unauthorized.html"
   status = 404
+
+#chat maturalny
+[[redirects]]
+  from = "/api/chat"
+  to   = "/.netlify/functions/chat"
+  status = 200
