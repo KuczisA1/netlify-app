@@ -7,9 +7,8 @@
   <link rel="stylesheet" href="./styles.css" />
   <meta name="referrer" content="strict-origin-when-cross-origin">
 
-  <!-- 1) Nasz skrypt musi być wczytany PRZED API YT, żeby uniknąć race condition -->
+  <!-- Nasz skrypt musi być PRZED API YT, by uniknąć race condition -->
   <script src="./script.js"></script>
-  <!-- 2) Dopiero teraz IFrame API (bez inline eventów, zgodnie z CSP) -->
   <script src="https://www.youtube.com/iframe_api" referrerpolicy="strict-origin-when-cross-origin"></script>
 </head>
 <body>
@@ -23,27 +22,19 @@
   <main class="stage">
     <div class="player-card" id="playerCard">
       <div class="player-shell" id="playerShell">
-        <!-- Kontener dla YT Iframe API -->
         <div id="player" class="player"></div>
 
-        <!-- Własne kontrolki -->
         <div class="controls" id="controls" role="group" aria-label="Kontrolki odtwarzacza">
           <button class="btn icon" id="playPause" aria-label="Odtwórz/Pauza">
             <svg viewBox="0 0 24 24" class="i"><path d="M8 5v14l11-7z"/></svg>
           </button>
-
           <span id="timeNow" class="time">0:00</span>
-
           <input type="range" id="seek" min="0" max="1000" value="0" aria-label="Przewijanie" />
-
           <span id="timeDur" class="time">0:00</span>
-
           <button class="btn icon" id="muteToggle" aria-label="Wycisz/Włącz dźwięk">
             <svg viewBox="0 0 24 24" class="i"><path d="M7 9v6h4l5 5V4l-5 5H7z"/></svg>
           </button>
-
           <input type="range" id="volume" min="0" max="100" value="100" aria-label="Głośność" />
-
           <label class="rateLab">
             <span class="sr-only">Prędkość</span>
             <select id="rate">
@@ -55,13 +46,11 @@
               <option value="2">2×</option>
             </select>
           </label>
-
           <button class="btn icon" id="fullscreen" aria-label="Pełny ekran">
             <svg viewBox="0 0 24 24" class="i"><path d="M7 14H5v5h5v-2H7v-3zm12 5h-5v-2h3v-3h2v5zM7 5h3V3H5v5h2V5zm12 0v3h-3v2h5V3h-2z"/></svg>
           </button>
         </div>
       </div>
-
       <div id="msg" class="msg" role="status" aria-live="polite"></div>
     </div>
   </main>
