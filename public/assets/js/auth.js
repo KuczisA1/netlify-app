@@ -9,7 +9,7 @@
   const PATHS = {
     home: ['/', '/index.html'],
     dashboard: '/dashboard.html',
-    loginBase: '/login',   // bez trailing w porównaniach
+    loginBase: '/login',   // zakładamy public/login/index.html
   };
 
   // Normalizacja path (bez końcowego "/")
@@ -49,7 +49,33 @@
     if (dashboardLink) dashboardLink.style.display = user ? '' : 'none';
   }
 
-  // ===== JWT refresh =====
+  // ===== JWT refresh / naprawa sesji =====
+  async function ensureFreshJwtCookieOrLogout() {
+    if (!hasIdentity()) return false;
+    const ni = window.netlifyIdentity;
+    const u = ni.currentUser();
+    if (!u) { clearJwtCookie(); return false; }
+
+    // 1. Spróbuj zwykłego JWT
+    try {
+      const token = await u.jwt();
+      setJwtCookie(token);
+      return true;
+    } catch {}
+
+    // 2. Wymuś odświeżenie
+    try {
+      const token = await u.jwt(true);
+      setJwtCookie(token);
+      return true;
+    } catch {}
+
+    // 3. Nie udało się — wyloguj i zostań na /login/
+    clearJwtCookie();
+    try { await ni.logout(); } catch {}
+    return false;
+  }
+
   async function refreshUser(user) {
     try { await user.jwt(true); } catch {}
     return window.netlifyIdentity.currentUser() || user;
@@ -134,8 +160,7 @@
     if (last === path && (now - lastTs) < 2000) return; // nie skacz w kółko
     sessionStorage.setItem('lastNavPath', path);
     sessionStorage.setItem('lastNavTs', String(now));
-    // replace → bez dorzucania historii (mniej BFCache/visibility eventów wstecz)
-    location.replace(path);
+    location.replace(path); // bez dorzucania historii
   }
 
   // ===== Guard właściwy =====
@@ -144,19 +169,19 @@
 
     const user = window.netlifyIdentity.currentUser();
 
-    // HOME: jeśli zalogowany → przenieś na dashboard (raz)
+    // HOME: jeśli zalogowany → dashboard
     if (onHome() && user) {
       safeGo(PATHS.dashboard);
       return;
     }
 
-    // LOGIN: jeśli NIE zalogowany → zostań (zero redirectów)
-    // LOGIN: jeśli zalogowany → dashboard
+    // LOGIN: jeśli zalogowany → tylko po świeżym JWT idź na dashboard; inaczej zostań
     if (onLogin()) {
       if (user) {
-        safeGo(PATHS.dashboard);
+        const ok = await ensureFreshJwtCookieOrLogout();
+        if (ok) safeGo(PATHS.dashboard);
       }
-      return; // brak redirectu gdy user == null
+      return; // gdy niezalogowany → zostań na /login/
     }
 
     // DASHBOARD: jeśli niezalogowany → /login/
@@ -169,9 +194,8 @@
       return;
     }
 
-    // Inne strony: nic na siłę
+    // Inne: opcjonalnie odśwież UI jeśli zalogowany
     if (user) {
-      // możesz chcieć uzupełnić UI
       await paintUser();
     }
   }
@@ -192,7 +216,7 @@
 
     try { window.netlifyIdentity.init(); } catch {}
 
-    // Klik „Zaloguj się” na HOME → przejście na /login/
+    // Klik „Zaloguj się” na HOME → /login/
     const loginBtn = $('login-btn');
     if (loginBtn) {
       loginBtn.addEventListener('click', (e) => {
@@ -213,7 +237,8 @@
     window.netlifyIdentity.on('init', async (user) => {
       updateAuthLinks(user);
       if (user) {
-        try { setJwtCookie(await user.jwt()); } catch {}
+        const ok = await ensureFreshJwtCookieOrLogout();
+        if (!ok) { await runGuard(); return; }
       } else {
         clearJwtCookie();
       }
@@ -222,7 +247,8 @@
 
     window.netlifyIdentity.on('login', async (user) => {
       updateAuthLinks(user);
-      try { setJwtCookie(await user.jwt()); } catch {}
+      const ok = await ensureFreshJwtCookieOrLogout();
+      if (!ok) return;
       safeGo(PATHS.dashboard);
     });
 

@@ -1,19 +1,20 @@
-// netlify/functions/identity-signup.js
+// netlify/functions/identity-login.js
 exports.handler = async (event) => {
   try {
     const payload = JSON.parse(event.body || "{}");
     const user = payload && payload.user;
-    if (!user) {
-      return { statusCode: 400, body: "No user in payload" };
+    const roles = (user && user.app_metadata && user.app_metadata.roles) || [];
+    // Jeśli role już są — nic nie rób
+    if (Array.isArray(roles) && roles.length > 0) {
+      return { statusCode: 200, body: "{}" };
     }
-    // Nadaj rolę "pending" podczas rejestracji
+    // Brak ról → doszczep "pending"
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ app_metadata: { roles: ["pending"] } })
     };
   } catch {
-    // Nie blokuj rejestracji, jeśli coś się wykrzaczy
     return { statusCode: 200, body: "{}" };
   }
 };
