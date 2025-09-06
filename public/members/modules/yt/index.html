@@ -6,11 +6,16 @@
   <title>ChemDisk – YT Player</title>
   <link rel="stylesheet" href="./styles.css" />
   <meta name="referrer" content="strict-origin-when-cross-origin">
+
+  <!-- 1) Nasz skrypt musi być wczytany PRZED API YT, żeby uniknąć race condition -->
+  <script src="./script.js"></script>
+  <!-- 2) Dopiero teraz IFrame API (bez inline eventów, zgodnie z CSP) -->
+  <script src="https://www.youtube.com/iframe_api" referrerpolicy="strict-origin-when-cross-origin"></script>
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
-      <img src="/assets/logo-chemdisk.svg" alt="ChemDisk" onerror="this.replaceWith(document.createTextNode('ChemDisk'));">
+      <img id="brandLogo" src="/assets/logo-chemdisk.svg" alt="ChemDisk">
       <span class="title">YT Player</span>
     </div>
   </header>
@@ -24,7 +29,6 @@
         <!-- Własne kontrolki -->
         <div class="controls" id="controls" role="group" aria-label="Kontrolki odtwarzacza">
           <button class="btn icon" id="playPause" aria-label="Odtwórz/Pauza">
-            <!-- ▶ / ❚❚ -->
             <svg viewBox="0 0 24 24" class="i"><path d="M8 5v14l11-7z"/></svg>
           </button>
 
@@ -65,9 +69,5 @@
   <footer class="footer">
     <small>© ChemDisk • Tryb prywatności YouTube (youtube-nocookie.com) • Własne kontrolki</small>
   </footer>
-
-  <!-- YouTube IFrame API -->
-  <script src="https://www.youtube.com/iframe_api" referrerpolicy="strict-origin-when-cross-origin"></script>
-  <script src="./script.js" defer></script>
 </body>
 </html>

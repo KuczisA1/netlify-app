@@ -1,102 +1,132 @@
-// ======= OBF_MAP: ZAMIEŃ na swoje dane (XOR z 73) =======
-// Jak zrobić tablicę: Array.from("TWOJE_YT_ID").map(c => c.charCodeAt(0) ^ 73)
+/* =========================================================
+   ChemDisk YT Player (bez inline JS, zgodny z CSP)
+   - rozwiązuje race condition z IFrame API
+   - własne kontrolki, brak JSON, ID „zaciemnione”
+   ========================================================= */
+
+// ------- Minimalna obfuskacja ID (XOR z 73) --------
+// Jak policzyć tablicę: Array.from("TWOJE_YT_ID").map(c => c.charCodeAt(0) ^ 73)
+// Poniżej PRZYKŁAD (działa): "dQw4w9WgXcQ"
 const OBF_MAP = {
-  // PRZYKŁAD (Rick): YT_FILM1 -> "dQw4w9WgXcQ"
   YT_FILM1: [45,24,62,125,62,112,30,46,17,42,24],
-  // YT_FILM_MATURA: [ ... ]
+  // YT_FILM_MATURA: [ ...twoje liczby... ]
 };
 
-// ======= USTAWIENIA =======
 const DEFAULT_KEY = "YT_FILM1";
 const PLAYER_VARS = {
-  controls: 0,
-  modestbranding: 1,
-  rel: 0,
-  fs: 0,
-  disablekb: 1,
-  playsinline: 1,
-  iv_load_policy: 3,
-  origin: location.origin // ważne na produkcji (YT zaleca)
+  controls: 0, modestbranding: 1, rel: 0, fs: 0, disablekb: 1,
+  playsinline: 1, iv_load_policy: 3, origin: location.origin
 };
 
-// ======= HELPERS =======
-const $ = (s) => document.querySelector(s);
-const msg = $("#msg");
-const playBtn = $("#playPause");
-const seek = $("#seek");
-const vol = $("#volume");
-const muteBtn = $("#muteToggle");
-const rateSel = $("#rate");
-const fsBtn = $("#fullscreen");
-const timeNow = $("#timeNow");
-const timeDur = $("#timeDur");
-const shell = $("#playerShell");
+// ---- Helpers (bez dotykania DOM przed DOMContentLoaded) ----
+const qs = (s) => document.querySelector(s);
+function fmtTime(s) { s = Math.max(0, Math.floor(s || 0)); const m = Math.floor(s/60), r = s%60; return `${m}:${String(r).padStart(2,"0")}`; }
+function decodeId(arr) { return String.fromCharCode(...arr.map(n => n ^ 73)); }
+function maskId(id) { if(!id) return ""; return id.length<=4 ? "***" : id.slice(0,2)+"*".repeat(id.length-4)+id.slice(-2); }
 
-function setMsg(t){ msg.textContent = t || ""; }
-function fmtTime(s){ s=Math.max(0,Math.floor(s||0)); const m=Math.floor(s/60), r=s%60; return `${m}:${r.toString().padStart(2,"0")}`; }
-function decodeId(arr){ return String.fromCharCode(...arr.map(n => n ^ 73)); }
-function maskId(id){ if(!id) return ""; return id.length<=4 ? "***" : id.slice(0,2)+"*".repeat(id.length-4)+id.slice(-2); }
-
-// Utrudnienia kopiowania (to tylko „friction”)
+// --------- Utrudnienia kopiowania (friction, nie ochrona) ----------
 window.addEventListener("contextmenu", e => e.preventDefault(), {capture:true});
 window.addEventListener("keydown", e => {
   if ((e.ctrlKey || e.metaKey) && ["u","s","c"].includes(e.key.toLowerCase())) e.preventDefault();
 }, {capture:true});
 
-// ======= POBRANIE KLUCZA =======
+// --------- Stan + bramki inicjalizacji ----------
+const state = {
+  domReady: false,
+  apiReady: false,
+  player: null,
+  ticker: null,
+  dragging: false,
+  loadedOnce: false,
+  elements: {}
+};
+
+// Callback wołany przez YT API (musi istnieć ZANIM załadujesz API)
+window.onYouTubeIframeAPIReady = function onYouTubeIframeAPIReady() {
+  state.apiReady = true;
+  maybeInit();
+};
+
+// DOM gotowy -> chwytamy elementy i bindowanie UI
+document.addEventListener("DOMContentLoaded", () => {
+  state.domReady = true;
+
+  // Fallback logo bez inline
+  const logo = document.getElementById("brandLogo");
+  if (logo) {
+    logo.addEventListener("error", () => {
+      const span = document.createElement("span");
+      span.textContent = "ChemDisk";
+      span.className = "title";
+      logo.replaceWith(span);
+    }, { once: true });
+  }
+
+  // Cache elementów
+  state.elements = {
+    msg: qs("#msg"),
+    playBtn: qs("#playPause"),
+    seek: qs("#seek"),
+    vol: qs("#volume"),
+    muteBtn: qs("#muteToggle"),
+    rateSel: qs("#rate"),
+    fsBtn: qs("#fullscreen"),
+    timeNow: qs("#timeNow"),
+    timeDur: qs("#timeDur"),
+    shell: qs("#playerShell")
+  };
+
+  bindUI();
+  maybeInit();
+});
+
+// --------- Ustal ID na podstawie ?id=... bez ujawniania go w DOM ----------
 const params = new URLSearchParams(location.search);
 const key = params.get("id") || DEFAULT_KEY;
 const VIDEO_ID = OBF_MAP[key] ? decodeId(OBF_MAP[key]) : null;
 
-// Szybka walidacja obfuskacji
-(function validateObf(){
+// --------- Inicjalizacja gracza dopiero gdy i DOM, i API są gotowe ----------
+function maybeInit() {
+  if (!state.domReady || !state.apiReady || state.player) return;
+
   if (!VIDEO_ID) {
     setMsg("Brak zdefiniowanego wideo dla klucza (?id=...). Uzupełnij OBF_MAP.");
-  } else if (VIDEO_ID.length !== 11) {
-    setMsg("ID wideo wygląda na niepoprawne (sprawdź obfuskację).");
-    console.warn("[YT] ID ma nietypową długość:", VIDEO_ID.length);
+    return;
   }
-})();
+  if (VIDEO_ID.length !== 11) {
+    setMsg("ID wideo wygląda na niepoprawne (sprawdź obfuskację).");
+  }
 
-// ======= YT API =======
-let player = null, ticker = null, dragging = false;
-
-window.onYouTubeIframeAPIReady = () => {
-  player = new YT.Player("player", {
+  state.player = new YT.Player("player", {
     width: "100%", height: "100%",
-    videoId: "", // ustawimy później
+    videoId: "", // ładujemy dopiero na klik (user gesture)
     host: "https://www.youtube-nocookie.com",
     playerVars: PLAYER_VARS,
     events: { onReady, onStateChange, onError }
   });
-};
-
-function onReady(){
-  try {
-    if (VIDEO_ID) {
-      player.cueVideoById({ videoId: VIDEO_ID });
-      setMsg(""); // ok
-    } else {
-      setMsg("Nie ustawiono ID wideo.");
-    }
-  } catch(e) {
-    console.error(e);
-    setMsg("Nie udało się zainicjalizować odtwarzacza.");
-  }
-  setupUI();
 }
 
-function onState(ev){
+function onReady() {
+  // Nie autoodtwarzamy; na pierwsze „Play” robimy loadVideoById
+  try {
+    state.player.setVolume(100);
+    updateMuteIcon();
+    // Ustal od razu duration (jeśli możliwe po cue); ale my ładować będziemy przy Play
+    setMsg("");
+  } catch {}
+}
+
+function onStateChange(ev) {
   const st = ev.data, YTS = YT.PlayerState;
   updatePlayIcon(st === YTS.PLAYING);
 
   if (st === YTS.PLAYING) startTicker();
-  else { stopTicker(); if (st === YTS.ENDED){ seek.value = 0; timeNow.textContent = "0:00"; } }
+  else { stopTicker(); if (st === YTS.ENDED) { setSeek(0); setNow(0); } }
 
-  const d = safeGetDuration(); if (d > 0) timeDur.textContent = fmtTime(d);
+  const d = safeGetDuration(); if (d > 0) setDur(d);
 }
 
-function onError(e){
+function onError(e) {
   const code = e?.data;
   const map = {
     2: "Błąd parametrów (ID nieprawidłowe). Sprawdź OBF_MAP.",
@@ -109,106 +139,139 @@ function onError(e){
   console.warn("[YT-ERROR]", code);
 }
 
-function setupUI(){
-  playBtn.addEventListener("click", togglePlay);
+// ---------------- UI ----------------
+function bindUI() {
+  const { playBtn, seek, vol, muteBtn, rateSel, fsBtn, shell } = state.elements;
 
-  seek.addEventListener("input", () => {
-    if (!dragging) return;
-    const d = safeGetDuration(); const t = (seek.value/1000)*d;
-    timeNow.textContent = fmtTime(t);
+  // Play/Pause
+  playBtn?.addEventListener("click", () => {
+    // Pierwsze kliknięcie: załaduj wideo prawdziwym wywołaniem (user gesture)
+    if (!state.loadedOnce) {
+      try {
+        state.player.loadVideoById({ videoId: VIDEO_ID, startSeconds: 0 });
+        state.loadedOnce = true;
+      } catch {
+        // gdyby API nie doszło, spróbuj później
+      }
+      return;
+    }
+    togglePlay();
   });
-  const startDrag = () => dragging = true;
+
+  // Seek
+  seek?.addEventListener("input", () => {
+    if (!state.dragging) return;
+    const d = safeGetDuration(); const t = (seek.value / 1000) * d; setNow(t);
+  });
+  const startDrag = () => (state.dragging = true);
   const commitSeek = () => {
     const d = safeGetDuration();
-    if (d > 0) player.seekTo((seek.value/1000)*d, true);
-    dragging = false;
+    if (d > 0) state.player.seekTo((seek.value / 1000) * d, true);
+    state.dragging = false;
   };
-  seek.addEventListener("mousedown", startDrag);
-  seek.addEventListener("touchstart", startDrag, {passive:true});
-  seek.addEventListener("mouseup", commitSeek);
-  seek.addEventListener("touchend", commitSeek);
-  seek.addEventListener("change", commitSeek);
+  seek?.addEventListener("mousedown", startDrag);
+  seek?.addEventListener("touchstart", startDrag, { passive: true });
+  seek?.addEventListener("mouseup", commitSeek);
+  seek?.addEventListener("touchend", commitSeek);
+  seek?.addEventListener("change", commitSeek);
 
-  vol.addEventListener("input", () => {
+  // Volume
+  vol?.addEventListener("input", () => {
     try {
-      player.setVolume(parseInt(vol.value,10));
-      if (player.isMuted() && vol.value > 0) player.unMute();
+      state.player.setVolume(parseInt(vol.value, 10));
+      if (state.player.isMuted() && vol.value > 0) state.player.unMute();
       updateMuteIcon();
     } catch {}
   });
 
-  muteBtn.addEventListener("click", () => {
+  // Mute
+  muteBtn?.addEventListener("click", () => {
     try {
-      if (player.isMuted() || player.getVolume() === 0) {
-        player.unMute(); if (vol.value === "0") { vol.value = "50"; player.setVolume(50); }
-      } else player.mute();
+      if (state.player.isMuted() || state.player.getVolume() === 0) {
+        state.player.unMute();
+        if (vol && vol.value === "0") { vol.value = "50"; state.player.setVolume(50); }
+      } else state.player.mute();
       updateMuteIcon();
     } catch {}
   });
 
-  rateSel.addEventListener("change", () => {
-    try { player.setPlaybackRate(parseFloat(rateSel.value)); } catch {}
+  // Rate
+  rateSel?.addEventListener("change", () => {
+    try { state.player.setPlaybackRate(parseFloat(rateSel.value)); } catch {}
   });
 
-  fsBtn.addEventListener("click", async () => {
+  // Fullscreen
+  fsBtn?.addEventListener("click", async () => {
     try {
       if (!document.fullscreenElement) await shell.requestFullscreen();
       else await document.exitFullscreen();
     } catch {}
   });
 
+  // Skróty
   window.addEventListener("keydown", (e) => {
     if (["INPUT","TEXTAREA","SELECT"].includes(document.activeElement?.tagName)) return;
-    if (e.code === "Space") { e.preventDefault(); togglePlay(); }
-    if (e.key === "ArrowRight") player.seekTo(safeGetTime()+5, true);
-    if (e.key === "ArrowLeft")  player.seekTo(Math.max(0, safeGetTime()-5), true);
-    if (e.key.toLowerCase() === "m") muteBtn.click();
-    if (e.key.toLowerCase() === "f") fsBtn.click();
+    if (e.code === "Space") { e.preventDefault(); playBtn?.click(); }
+    if (e.key === "ArrowRight") state.player?.seekTo(safeGetTime()+5, true);
+    if (e.key === "ArrowLeft")  state.player?.seekTo(Math.max(0, safeGetTime()-5), true);
+    if (e.key.toLowerCase() === "m") muteBtn?.click();
+    if (e.key.toLowerCase() === "f") fsBtn?.click();
   });
-
-  try { player.setVolume(100); updateMuteIcon(); } catch {}
 }
 
-function togglePlay(){
-  try {
-    const st = player.getPlayerState();
-    if (st === YT.PlayerState.PLAYING) player.pauseVideo();
-    else player.playVideo();
-  } catch {}
-}
-
-function startTicker(){
+// --------------- Ticker / aktualizacja czasu ---------------
+function startTicker() {
   stopTicker();
-  ticker = setInterval(() => {
+  state.ticker = setInterval(() => {
     const d = safeGetDuration(), t = safeGetTime();
-    if (d > 0 && !dragging) {
-      seek.value = Math.round((t/d)*1000);
-      timeNow.textContent = fmtTime(t);
-      timeDur.textContent = fmtTime(d);
+    if (d > 0 && !state.dragging) {
+      setSeek(Math.round((t / d) * 1000));
+      setNow(t); setDur(d);
     }
   }, 250);
 }
-function stopTicker(){ if (ticker) { clearInterval(ticker); ticker = null; } }
-function updatePlayIcon(playing){
-  playBtn.innerHTML = playing
+function stopTicker() { if (state.ticker) { clearInterval(state.ticker); state.ticker = null; } }
+
+// --------------- Utility na UI ---------------
+function setMsg(text) { if (state.elements.msg) state.elements.msg.textContent = text || ""; }
+function setSeek(v) { if (state.elements.seek) state.elements.seek.value = String(v); }
+function setNow(t) { if (state.elements.timeNow) state.elements.timeNow.textContent = fmtTime(t); }
+function setDur(t) { if (state.elements.timeDur) state.elements.timeDur.textContent = fmtTime(t); }
+
+function updatePlayIcon(playing) {
+  if (!state.elements.playBtn) return;
+  state.elements.playBtn.innerHTML = playing
     ? '<svg viewBox="0 0 24 24" class="i"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>'
     : '<svg viewBox="0 0 24 24" class="i"><path d="M8 5v14l11-7z"/></svg>';
 }
-function updateMuteIcon(){
+function updateMuteIcon() {
+  if (!state.elements.muteBtn) return;
   let muted = false;
-  try { muted = player.isMuted() || player.getVolume() === 0; } catch {}
-  muteBtn.innerHTML = muted
+  try { muted = state.player.isMuted() || state.player.getVolume() === 0; } catch {}
+  state.elements.muteBtn.innerHTML = muted
     ? '<svg viewBox="0 0 24 24" class="i"><path d="M7 9v6h4l5 5V4l-5 5H7zM19 12l3 3-1.5 1.5L17.5 13.5 14 10l1.5-1.5L19 12z"/></svg>'
     : '<svg viewBox="0 0 24 24" class="i"><path d="M7 9v6h4l5 5V4l-5 5H7z"/></svg>';
 }
-function safeGetTime(){ try { return player.getCurrentTime()||0; } catch { return 0; } }
-function safeGetDuration(){ try { return player.getDuration()||0; } catch { return 0; } }
 
-// Prosty diagnostyk do konsoli (nie pokazuje pełnego ID)
+function togglePlay() {
+  try {
+    const st = state.player.getPlayerState();
+    if (st === YT.PlayerState.PLAYING) state.player.pauseVideo();
+    else state.player.playVideo();
+  } catch {}
+}
+
+function safeGetTime(){ try { return state.player.getCurrentTime() || 0; } catch { return 0; } }
+function safeGetDuration(){ try { return state.player.getDuration() || 0; } catch { return 0; } }
+
+// Diagnostyka do konsoli (bez ujawniania pełnego ID)
 window.__yt_diag = () => ({
   ytApiLoaded: !!window.YT,
+  domReady: state.domReady,
+  apiReady: state.apiReady,
+  playerReady: !!state.player,
   key,
   idLen: VIDEO_ID ? VIDEO_ID.length : 0,
   idMasked: maskId(VIDEO_ID),
-  location: location.href
+  href: location.href
 });
