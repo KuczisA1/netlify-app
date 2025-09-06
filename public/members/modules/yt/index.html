@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ChemDisk – YouTube Viewer</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="/assets/logo-chemdisk.svg" alt="ChemDisk" onerror="this.replaceWith(document.createTextNode('ChemDisk'));">
+      <span class="title">YouTube Viewer</span>
+    </div>
+
+    <div class="controls">
+      <label class="sr-only" for="envKey">Wybierz zmienną</label>
+      <select id="envKey" class="select"></select>
+      <button id="copyLinkBtn" class="btn" type="button" title="Kopiuj link do tego filmu">Kopiuj link</button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="player-card">
+      <div class="player" id="playerContainer" aria-label="Odtwarzacz wideo">
+        <iframe
+          id="ytFrame"
+          title="YouTube video"
+          src=""
+          loading="lazy"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          referrerpolicy="strict-origin-when-cross-origin"
+          allowfullscreen
+        ></iframe>
+      </div>
+
+      <div id="msg" class="msg" role="status" aria-live="polite"></div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <small>© ChemDisk • Tryb prywatności YouTube (youtube-nocookie.com)</small>
+  </footer>
+
+  <script src="./script.js" defer></script>
+</body>
+</html>
