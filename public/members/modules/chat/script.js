@@ -3,8 +3,8 @@
    ========================================================= */
 
 const API = {
-  MODE: 'proxy',                 // używamy funkcji serwerowej
-  PROXY_URL: '/api/chat',        // mapowane w netlify.toml
+  MODE: 'proxy',
+  PROXY_URL: '/.netlify/functions/chat', // <-- bezpośrednio w funkcję
   CHAT_MODEL: 'gemini-2.5-flash',
   TEMPERATURE: 0.2
 };
