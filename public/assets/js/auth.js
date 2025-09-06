@@ -167,7 +167,7 @@
 
   // ======== CROSS-DEVICE LOGOUT (wyloguj jeśli zalogowano się gdzie indziej) ========
   // >>> Aby WYŁĄCZYĆ, zakomentuj cały ten blok LUB ustaw flagę na false:
-  const ENABLE_CROSS_DEVICE_LOGOUT = true;
+  const ENABLE_CROSS_DEVICE_LOGOUT = false;
 
   let stopSessionWatcher = null;
 
