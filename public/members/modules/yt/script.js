@@ -1,4 +1,4 @@
-/* ====== Minimal full-screen YT player z auto-hide controlsem ====== */
+/* ====== ChemDisk YT Player – pełne okno, overlay click, dblclick/tap fullscreen ====== */
 
 const qs = (s) => document.querySelector(s);
 function fmtTime(s){ s=Math.max(0,Math.floor(s||0)); const m=Math.floor(s/60), r=s%60; return `${m}:${String(r).padStart(2,"0")}`; }
@@ -15,8 +15,7 @@ window.addEventListener("keydown", e => {
 const state = {
   domReady:false, apiReady:false, confReady:false,
   player:null, ticker:null, dragging:false, loadedOnce:false,
-  videoId:null, key:null, elements:{},
-  hideTimer:null, isMouseActive:false
+  videoId:null, key:null, elements:{}, hideTimer:null
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -36,38 +35,10 @@ document.addEventListener("DOMContentLoaded", () => {
     timeDur: qs("#timeDur"),
   };
   bindUI();
-  function overlaySingleClick(){
-  showControls(true);
-  if (!state.loadedOnce) {
-    if (!state.videoId) { setMsg("Brak ID."); return; }
-    try {
-      state.player.loadVideoById({ videoId: state.videoId, startSeconds: 0 });
-      state.loadedOnce = true;
-      scheduleAutoHide();
-    } catch {}
-    return;
-  }
-  togglePlay();
-}
-
-async function overlayToggleFullscreen(){
-  try{
-    const el = state.elements.shell;
-    if (!document.fullscreenElement) {
-      await el.requestFullscreen();
-    } else {
-      await document.exitFullscreen();
-    }
-  }catch{}
-  // pokaż kontrolki chwilowo, potem niech znikną przy PLAYING
-  showControls(true);
-  scheduleAutoHide();
-}
-
   fetchConfig();
 });
 
-window.onYouTubeIframeAPIReady = function(){ state.apiReady = true; maybeInit(); };
+window.onYouTubeIframeAPIReady = () => { state.apiReady = true; maybeInit(); };
 
 /* --- Env/Netlify config --- */
 async function fetchConfig(){
@@ -92,7 +63,7 @@ async function fetchConfig(){
 
     state.confReady = true;
     maybeInit();
-  }catch(err){
+  }catch{
     setMsg("Nie udało się pobrać konfiguracji ID.");
   }
 }
@@ -116,7 +87,7 @@ function onReady(){
     state.player.setVolume(100);
     updateMuteIcon();
     setMsg("");
-    showControls(); // na start pokaż
+    showControls(); // pokaż na start
   }catch{}
 }
 
@@ -129,7 +100,7 @@ function onStateChange(ev){
     scheduleAutoHide(); // schowaj po chwili
   } else {
     stopTicker();
-    showControls(true); // zawsze pokaż przy pauzie/stopie
+    showControls(true); // przy pauzie/stopie pokaż pasek
     if (st === YTS.ENDED){ setSeek(0); setNow(0); }
   }
   const d = safeGetDuration(); if (d > 0) setDur(d);
@@ -148,61 +119,59 @@ function onError(e){
   console.warn("[YT-ERROR]", code);
 }
 
-/* --- Controls logic --- */
+/* --- Controls & overlay logic --- */
 function bindUI(){
-  const { playBtn, seek, vol, muteBtn, rateSel, fsBtn, shell, controls } = state.elements;
+  const {
+    playBtn, seek, vol, muteBtn, rateSel, fsBtn, shell, overlay: overlayEl
+  } = state.elements;
 
   // Auto-hide wyzwalacze
-  const nudge = () => {
-    showControls(true);
-    scheduleAutoHide();
-  };
+  const nudge = () => { showControls(true); scheduleAutoHide(); };
   ["mousemove","touchstart","pointermove"].forEach(evt => {
-    shell.addEventListener(evt, nudge, {passive:true});
+    shell?.addEventListener(evt, nudge, {passive:true});
   });
 
-  // Blokada kliknięć w obszarze wideo (overlay łapie zdarzenia)
-  state.elements.overlay?.addEventListener("click", nudge);
+  // === Overlay gestures: click = Play/Pause, dblclick = Fullscreen, double-tap (mobile) = Fullscreen ===
+  let clickTimeout = null;
+  let lastTapTs = 0;
 
-// === Overlay gestures: click = Play/Pause, dblclick = Fullscreen, double-tap (mobile) = Fullscreen ===
-let clickTimeout = null;
-let lastTapTs = 0;
-
-// Pojedynczy klik -> Play/Pause (z opóźnieniem, by ewentualny dblclick mógł anulować)
-overlay?.addEventListener("click", () => {
-  if (clickTimeout) return; // już czekamy na rozstrzygnięcie
-  clickTimeout = setTimeout(() => {
-    clickTimeout = null;
-    overlaySingleClick();
-  }, 220);
-});
-
-// Podwójny klik -> Fullscreen (anuluje pojedynczy klik)
-overlay?.addEventListener("dblclick", (e) => {
-  if (clickTimeout) { clearTimeout(clickTimeout); clickTimeout = null; }
-  e.preventDefault();
-  overlayToggleFullscreen();
-});
-
-// Double-tap na mobile -> Fullscreen (tap, tap w <280ms)
-overlay?.addEventListener("touchend", (e) => {
-  const now = Date.now();
-  if (now - lastTapTs < 280) {
-    if (clickTimeout) { clearTimeout(clickTimeout); clickTimeout = null; }
-    overlayToggleFullscreen();
-    lastTapTs = 0;
-  } else {
-    lastTapTs = now;
-    // fallback: jeśli nie będzie drugiego tappa, zrób single click
-    if (clickTimeout) clearTimeout(clickTimeout);
+  // Pojedynczy klik -> Play/Pause (opóźnienie, by ewentualny dblclick anulował)
+  overlayEl?.addEventListener("click", () => {
+    if (clickTimeout) return;
     clickTimeout = setTimeout(() => {
       clickTimeout = null;
       overlaySingleClick();
     }, 220);
-  }
-}, { passive: true });
+  });
 
+  // Podwójny klik -> Fullscreen (anuluje pojedynczy klik)
+  overlayEl?.addEventListener("dblclick", (e) => {
+    if (clickTimeout) { clearTimeout(clickTimeout); clickTimeout = null; }
+    e.preventDefault();
+    overlayToggleFullscreen();
+  });
 
+  // Double-tap na mobile -> Fullscreen
+  overlayEl?.addEventListener("touchend", () => {
+    const now = Date.now();
+    if (now - lastTapTs < 280) {
+      if (clickTimeout) { clearTimeout(clickTimeout); clickTimeout = null; }
+      overlayToggleFullscreen();
+      lastTapTs = 0;
+    } else {
+      lastTapTs = now;
+      if (clickTimeout) clearTimeout(clickTimeout);
+      clickTimeout = setTimeout(() => {
+        clickTimeout = null;
+        overlaySingleClick();
+      }, 220);
+    }
+  }, { passive: true });
+
+  // Przycisk play/pause – taki sam efekt jak overlay
+  playBtn?.addEventListener("click", () => startOrToggle());
+
+  // Seek
   seek?.addEventListener("input", () => {
     if (!state.dragging) return;
     const d = safeGetDuration(); const t = (seek.value/1000)*d; setNow(t);
@@ -220,6 +189,7 @@ overlay?.addEventListener("touchend", (e) => {
   seek?.addEventListener("touchend", commitSeek);
   seek?.addEventListener("change", commitSeek);
 
+  // Volume / mute
   vol?.addEventListener("input", () => {
     try {
       state.player.setVolume(parseInt(vol.value,10));
@@ -227,33 +197,71 @@ overlay?.addEventListener("touchend", (e) => {
       updateMuteIcon();
     } catch {}
   });
-
   muteBtn?.addEventListener("click", () => {
     try {
       if (state.player.isMuted() || state.player.getVolume() === 0) {
-        state.player.unMute(); if (vol && vol.value === "0") { vol.value = "50"; state.player.setVolume(50); }
+        state.player.unMute();
+        if (vol && vol.value === "0") { vol.value = "50"; state.player.setVolume(50); }
       } else state.player.mute();
       updateMuteIcon();
     } catch {}
   });
 
+  // Rate
   rateSel?.addEventListener("change", () => {
     try { state.player.setPlaybackRate(parseFloat(rateSel.value)); } catch {}
   });
 
+  // Fullscreen
   fsBtn?.addEventListener("click", async () => {
-    try { if (!document.fullscreenElement) await shell.requestFullscreen(); else await document.exitFullscreen(); } catch {}
+    try {
+      if (!document.fullscreenElement) await shell.requestFullscreen();
+      else await document.exitFullscreen();
+    } catch {}
   });
 
   // Klawiatura (poza polami formularzy)
   window.addEventListener("keydown", (e) => {
     if (["INPUT","TEXTAREA","SELECT"].includes(document.activeElement?.tagName)) return;
-    if (e.code === "Space") { e.preventDefault(); playBtn?.click(); }
+    if (e.code === "Space") { e.preventDefault(); startOrToggle(); }
     if (e.key === "ArrowRight") state.player?.seekTo(safeGetTime()+5, true);
     if (e.key === "ArrowLeft")  state.player?.seekTo(Math.max(0, safeGetTime()-5), true);
     if (e.key.toLowerCase() === "m") muteBtn?.click();
     if (e.key.toLowerCase() === "f") fsBtn?.click();
   });
+}
+
+/* --- Overlay helpers --- */
+function overlaySingleClick(){
+  showControls(true);
+  startOrToggle();
+}
+
+async function overlayToggleFullscreen(){
+  try{
+    const el = state.elements.shell;
+    if (!document.fullscreenElement) {
+      await el.requestFullscreen();
+    } else {
+      await document.exitFullscreen();
+    }
+  }catch{}
+  showControls(true);
+  scheduleAutoHide();
+}
+
+/* --- Start or toggle playback --- */
+function startOrToggle(){
+  if (!state.loadedOnce) {
+    if (!state.videoId) { setMsg("Brak ID – nie pobrało się z ENV."); return; }
+    try {
+      state.player.loadVideoById({ videoId: state.videoId, startSeconds: 0 });
+      state.loadedOnce = true;
+      scheduleAutoHide();
+    } catch {}
+    return;
+  }
+  togglePlay();
 }
 
 /* --- Auto-hide helpers --- */
@@ -266,7 +274,6 @@ function showControls(force){
 function hideControls(){
   const { controls } = state.elements;
   if (!controls) return;
-  // chowamy tylko gdy odtwarzanie
   try{
     if (state.player?.getPlayerState() === YT.PlayerState.PLAYING && !state.dragging){
       controls.classList.remove("visible");
@@ -278,7 +285,7 @@ function scheduleAutoHide(){
   try{
     if (state.player?.getPlayerState() !== YT.PlayerState.PLAYING) return; // przy pauzie – nie chowamy
   }catch{}
-  state.hideTimer = setTimeout(hideControls, 1100); // ~1.1s bezczynności
+  state.hideTimer = setTimeout(hideControls, 1100);
 }
 function clearAutoHide(){
   if (state.hideTimer){ clearTimeout(state.hideTimer); state.hideTimer = null; }
@@ -289,7 +296,10 @@ function startTicker(){
   stopTicker();
   state.ticker = setInterval(() => {
     const d = safeGetDuration(), t = safeGetTime();
-    if (d > 0 && !state.dragging) { setSeek(Math.round((t/d)*1000)); setNow(t); setDur(d); }
+    if (d > 0 && !state.dragging) {
+      const v = Math.max(0, Math.min(1000, Math.round((t/d)*1000)));
+      setSeek(v); setNow(t); setDur(d);
+    }
   }, 250);
 }
 function stopTicker(){ if (state.ticker) { clearInterval(state.ticker); state.ticker = null; } }
@@ -321,10 +331,11 @@ function togglePlay(){
     else { state.player.playVideo(); scheduleAutoHide(); }
   } catch {}
 }
+
 function safeGetTime(){ try { return state.player.getCurrentTime() || 0; } catch { return 0; } }
 function safeGetDuration(){ try { return state.player.getDuration() || 0; } catch { return 0; } }
 
-/* Diagnostyka */
+/* Diagnostyka (bez ujawniania pełnego ID) */
 window.__yt_diag = () => ({
   ytApiLoaded: !!window.YT, domReady: state.domReady, apiReady: state.apiReady, confReady: state.confReady,
   playerReady: !!state.player, key: state.key, idLen: state.videoId ? state.videoId.length : 0, idMasked: maskId(state.videoId)
