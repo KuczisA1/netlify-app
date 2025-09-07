@@ -1,5 +1,5 @@
 :root{
-  --bg:#0b0f14; --panel:#0f141b; --muted:#8aa0b3; --text:#e6edf3;
+  --bg:#0b0f14; --muted:#8aa0b3; --text:#e6edf3;
   --accent:#5cc8ff; --accent-2:#8b5cf6; --border:rgba(255,255,255,.12);
   --ring:0 0 0 2px rgba(92,200,255,.35);
 }
@@ -13,28 +13,26 @@ body{
   -webkit-user-select:none; user-select:none;
 }
 
-.stage{
-  display:grid; place-items:center; height:100dvh; width:100vw; padding:0; margin:0;
-}
+.stage{height:100dvh; width:100vw; margin:0; padding:0;}
 
-/* Główna ramka odtwarzacza */
 .player-shell{
-  position:relative; width:min(100vw, 100vh * 16 / 9); /* dopasuj do okna */
-  aspect-ratio:16/9; background:#000; overflow:hidden;
+  position:relative;
+  width:100vw; height:100dvh;
+  background:#000; overflow:hidden;
 }
 
-/* Player (iframe w środku) */
-.player { width:100%; height:100%; }
-.player iframe{ width:100%; height:100%; border:0; display:block }
+.player{width:100%; height:100%;}
+.player iframe{width:100%; height:100%; border:0; display:block}
 
 /* Overlay blokujący kliknięcia w wideo */
 .click-overlay{
-  position:absolute; inset:0; pointer-events:auto; /* łapie wszystkie kliki */
-  background:transparent; /* niewidoczny, ale aktywny */
+  position:absolute; inset:0;
+  background:transparent;
   z-index:5;
+  cursor:pointer;
 }
 
-/* Pasek kontrolek na dole */
+/* Pasek kontrolek */
 .controls{
   position:absolute; left:0; right:0; bottom:0;
   display:grid; grid-template-columns:auto auto 1fr auto auto auto auto auto;
@@ -46,10 +44,7 @@ body{
   transition: transform .22s ease, opacity .22s ease;
   z-index:10;
 }
-.controls.visible{
-  transform: translateY(0);
-  opacity:1;
-}
+.controls.visible{transform: translateY(0); opacity:1;}
 
 @media (max-width:720px){
   .controls{grid-template-columns:auto 1fr auto auto auto}
@@ -95,5 +90,4 @@ input[type="range"]::-moz-range-thumb{
   padding:.35rem .6rem; border-radius:8px; backdrop-filter:blur(6px);
 }
 
-/* Drobna ochrona przed łatwym klikaniem/kopiowaniem po UI */
 img, svg, canvas, video{pointer-events:none}

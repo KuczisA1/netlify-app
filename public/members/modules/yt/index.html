@@ -7,20 +7,15 @@
   <link rel="stylesheet" href="./styles.css" />
   <meta name="referrer" content="strict-origin-when-cross-origin">
 
-  <!-- Najpierw nasz skrypt (żeby przygotować hooki), potem API YT -->
   <script defer src="./script.js"></script>
   <script src="https://www.youtube.com/iframe_api" referrerpolicy="strict-origin-when-cross-origin"></script>
 </head>
 <body>
   <main class="stage">
     <div class="player-shell" id="playerShell" aria-label="Odtwarzacz wideo">
-      <!-- Właściwy player -->
       <div id="player" class="player" aria-hidden="true"></div>
-
-      <!-- Nieprzezroczysty overlay blokujący kliknięcia w film -->
       <div class="click-overlay" id="clickOverlay" aria-hidden="true"></div>
 
-      <!-- Pasek kontrolek (custom) -->
       <div class="controls" id="controls" role="group" aria-label="Kontrolki odtwarzacza">
         <button class="btn icon" id="playPause" aria-label="Odtwórz/Pauza">
           <svg viewBox="0 0 24 24" class="i"><path d="M8 5v14l11-7z"/></svg>

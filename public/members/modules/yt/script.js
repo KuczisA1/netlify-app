@@ -36,6 +36,34 @@ document.addEventListener("DOMContentLoaded", () => {
     timeDur: qs("#timeDur"),
   };
   bindUI();
+  function overlaySingleClick(){
+  showControls(true);
+  if (!state.loadedOnce) {
+    if (!state.videoId) { setMsg("Brak ID."); return; }
+    try {
+      state.player.loadVideoById({ videoId: state.videoId, startSeconds: 0 });
+      state.loadedOnce = true;
+      scheduleAutoHide();
+    } catch {}
+    return;
+  }
+  togglePlay();
+}
+
+async function overlayToggleFullscreen(){
+  try{
+    const el = state.elements.shell;
+    if (!document.fullscreenElement) {
+      await el.requestFullscreen();
+    } else {
+      await document.exitFullscreen();
+    }
+  }catch{}
+  // pokaż kontrolki chwilowo, potem niech znikną przy PLAYING
+  showControls(true);
+  scheduleAutoHide();
+}
+
   fetchConfig();
 });
 
@@ -136,17 +164,44 @@ function bindUI(){
   // Blokada kliknięć w obszarze wideo (overlay łapie zdarzenia)
   state.elements.overlay?.addEventListener("click", nudge);
 
-  playBtn?.addEventListener("click", () => {
-    if (!state.loadedOnce) {
-      if (!state.videoId) { setMsg("Brak ID – nie pobrało się z ENV."); return; }
-      try {
-        state.player.loadVideoById({ videoId: state.videoId, startSeconds: 0 });
-        state.loadedOnce = true;
-      } catch {}
-      return;
-    }
-    togglePlay();
-  });
+// === Overlay gestures: click = Play/Pause, dblclick = Fullscreen, double-tap (mobile) = Fullscreen ===
+let clickTimeout = null;
+let lastTapTs = 0;
+
+// Pojedynczy klik -> Play/Pause (z opóźnieniem, by ewentualny dblclick mógł anulować)
+overlay?.addEventListener("click", () => {
+  if (clickTimeout) return; // już czekamy na rozstrzygnięcie
+  clickTimeout = setTimeout(() => {
+    clickTimeout = null;
+    overlaySingleClick();
+  }, 220);
+});
+
+// Podwójny klik -> Fullscreen (anuluje pojedynczy klik)
+overlay?.addEventListener("dblclick", (e) => {
+  if (clickTimeout) { clearTimeout(clickTimeout); clickTimeout = null; }
+  e.preventDefault();
+  overlayToggleFullscreen();
+});
+
+// Double-tap na mobile -> Fullscreen (tap, tap w <280ms)
+overlay?.addEventListener("touchend", (e) => {
+  const now = Date.now();
+  if (now - lastTapTs < 280) {
+    if (clickTimeout) { clearTimeout(clickTimeout); clickTimeout = null; }
+    overlayToggleFullscreen();
+    lastTapTs = 0;
+  } else {
+    lastTapTs = now;
+    // fallback: jeśli nie będzie drugiego tappa, zrób single click
+    if (clickTimeout) clearTimeout(clickTimeout);
+    clickTimeout = setTimeout(() => {
+      clickTimeout = null;
+      overlaySingleClick();
+    }, 220);
+  }
+}, { passive: true });
+
 
   seek?.addEventListener("input", () => {
     if (!state.dragging) return;
