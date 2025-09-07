@@ -10,9 +10,18 @@
   <link rel="icon" href="/assets/logo-chemdisk.svg" />
 
   <style>
+    :root{
+      --mask-gap: 0px;       /* odsunięcie od prawej krawędzi (zostaw 0) */
+      --rail-width: 96px;    /* szerokość pasa maski po prawej */
+      --corner-w: 84px;      /* szerokość hitboxa rogu */
+      --corner-h: 72px;      /* wysokość hitboxa rogu */
+      --corner-gap-x: 12px;  /* odsunięcie rogu od prawej */
+      --corner-gap-y: 8px;   /* odsunięcie rogu od góry */
+    }
+
     html, body { height: 100%; margin: 0; background: #0b0b0c; overflow: hidden; }
 
-    /* Iframe: pełny ekran, klikalny */
+    /* Iframe z podglądem */
     #pdfFrame{
       position: fixed; inset: 0; width: 100%; height: 100%;
       border: 0; display: none;
@@ -21,7 +30,7 @@
       background: #000;
     }
 
-    /* Overlay z komunikatami (ponad iframe tylko, gdy widoczny) */
+    /* Overlay z komunikatami (lekki, niczego nie „przycina”) */
     #msg{
       position: fixed; inset: 0; z-index: 2;
       display: grid; place-items: center;
@@ -29,30 +38,45 @@
       font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial;
       color: #eaeaea; text-align: center;
     }
-    #msg[hidden]{ display:none !important; }
     #msg b{ color:#fff; }
+    #msg[hidden]{ display:none !important; }
     .hint{ opacity:.85; font-size:14px; margin-top:.6rem; }
 
-    /* NIEWIDOCZNA maska na prawy górny róg, by „złapać” klik na ikonie pop-out.
-       Jest przesunięta w lewo, aby nie wchodzić pod systemowy scrollbar. */
-    #maskRoot { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
+    /* Maska anty-popout: root nie łapie eventów; tylko „hitboxy” je przechwytują */
+    #maskRoot{
+      position: fixed; inset: 0; z-index: 3;
+      pointer-events: none;
+    }
     #maskRoot[hidden]{ display:none !important; }
-    #maskRoot .hit {
+    #maskRoot .hit{
       position: absolute;
-      top: calc(env(safe-area-inset-top, 0px) + 8px);
-      right: calc(env(safe-area-inset-right, 0px) + 12px); /* odsunięcie od scrollbarów */
-      width: 84px;   /* dostosowane do obszaru przycisku w viewerze */
-      height: 72px;
-      pointer-events: auto;  /* tylko ten niewidoczny prostokąt przechwytuje klik */
+      pointer-events: auto;
       background: transparent; /* całkowicie niewidoczne */
-      /* Jeśli chcesz subtelne „przykrycie”, odkomentuj:
-      background: linear-gradient(135deg, rgba(11,11,12,.9), rgba(11,11,12,0));
+      /* Jeśli chcesz lekko zasłonić ikonę, dodaj np.:
+      background: linear-gradient(90deg, rgba(11,11,12,.6), rgba(11,11,12,0));
       */
     }
+    /* Pionowy pas po prawej – „rail” (domyślny) */
+    #maskRoot .rail{
+      top: 0;
+      right: var(--mask-gap);
+      width: var(--rail-width);
+      height: 100%;
+    }
+    /* Mały hitbox w prawym górnym rogu – „corner” */
+    #maskRoot .corner{
+      top: calc(env(safe-area-inset-top, 0px) + var(--corner-gap-y));
+      right: calc(env(safe-area-inset-right, 0px) + var(--corner-gap-x));
+      width: var(--corner-w);
+      height: var(--corner-h);
+    }
 
-    @media (max-width: 640px) {
-      /* na małych ekranach ikona jest mniejsza — zawężamy hitbox */
-      #maskRoot .hit { width: 64px; height: 56px; }
+    @media (max-width: 640px){
+      :root{
+        --rail-width: 72px;
+        --corner-w: 64px;
+        --corner-h: 56px;
+      }
     }
   </style>
 </head>
@@ -63,11 +87,13 @@
           webkitallowfullscreen
           mozallowfullscreen
           referrerpolicy="strict-origin-when-cross-origin"
-          <!-- Blokujemy popouty (brak allow-popups), ale zostawiamy inne potrzebne uprawnienia -->
           sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-pointer-lock"></iframe>
 
-  <!-- Niewidoczna maska (można wyłączyć ?mask=0) -->
-  <div id="maskRoot" hidden aria-hidden="true"><div class="hit"></div></div>
+  <!-- Maska anty-popout (tryb wybierany parametrem ?mask=rail|corner|0) -->
+  <div id="maskRoot" hidden aria-hidden="true">
+    <div class="hit rail" hidden></div>
+    <div class="hit corner" hidden></div>
+  </div>
 
   <div id="msg" hidden></div>
 
@@ -83,13 +109,14 @@
         box.hidden = false;
       };
 
-      // --- Parametry: ?id=ALIAS [wymagany]
-      //     ?mode=gview  -> fallback viewer
-      //     ?mask=0      -> wyłącz maskę ikony pop-out
+      // Parametry:
+      // ?id=ALIAS [wymagany]
+      // ?mode=gview  -> fallback viewer
+      // ?mask=rail|corner|0  -> wybór maski (domyślnie: rail)
       const params = new URLSearchParams(location.search);
       const alias = (params.get('id') || '').trim();
-      const useGView = (params.get('mode') || '').toLowerCase() === 'gview';
-      const maskEnabled = (params.get('mask') || '') !== '0';
+      const mode = (params.get('mode') || '').toLowerCase();
+      const maskParam = (params.get('mask') || 'rail').toLowerCase();
 
       if (!alias) {
         showMsg('Brak parametru ?id=ALIAS.',
@@ -98,13 +125,24 @@
       }
       if (!/^[A-Za-z0-9_:-]{1,50}$/.test(alias)) {
         showMsg('Nieprawidłowy identyfikator.',
-                'Dozwolone: litery, cyfry, podkreślenie (_), myślnik (-), dwukropek (:).');
+                'Dozwolone znaki: litery, cyfry, _ - :');
         return;
       }
 
-      if (maskEnabled) $('maskRoot').hidden = false;
+      // Ustaw maskę (lekka, nie wpływa na wydajność)
+      const maskRoot = $('maskRoot');
+      const maskRail = maskRoot.querySelector('.rail');
+      const maskCorner = maskRoot.querySelector('.corner');
+      if (maskParam !== '0') {
+        maskRoot.hidden = false;
+        if (maskParam === 'corner') {
+          maskCorner.hidden = false;
+        } else {
+          maskRail.hidden = false;  // domyślne
+        }
+      }
 
-      // --- Pobierz ukryte fileId
+      // Pobierz ukryte fileId
       const endpoint = '/.netlify/functions/pdf-key?key=' + encodeURIComponent(alias);
       showMsg('Ładowanie dokumentu…');
 
@@ -119,6 +157,7 @@
           if (!fileId) throw new Error('Brak ID pliku dla aliasu "' + alias + '".');
 
           // URL viewer’a
+          const useGView = (mode === 'gview');
           const src = useGView
             ? 'https://docs.google.com/gview?embedded=true&url=' +
               encodeURIComponent('https://drive.google.com/uc?export=download&id=' + fileId)
@@ -128,26 +167,20 @@
           frame.src = src;
 
           // Po załadowaniu pokaż iframe i schowaj overlay
-          let loaded = false;
           frame.addEventListener('load', () => {
-            loaded = true;
             frame.style.display = 'block';
             $('msg').hidden = true;
           });
 
-          // Diagnostyka po 8 s: jeśli viewer nie wystartował, pokaż podpowiedź z fallbackiem
-          setTimeout(() => {
-            if (!loaded) {
-              showMsg('Nie udało się wczytać podglądu.',
-                      'Sprawdź udostępnienie pliku (Anyone with the link). '
-                      + 'Możesz też dodać parametr <code>?mode=gview</code> do adresu.');
-            }
-          }, 8000);
+          // Minimalna diagnostyka (bez zbędnych timerów)
+          const cs = getComputedStyle(frame);
+          if (cs.pointerEvents === 'none') frame.style.pointerEvents = 'auto';
         })
         .catch((e) => {
           showMsg('Nie udało się wczytać dokumentu.',
-                  (e && e.message ? e.message + '<br>' : '')
-                  + 'Sprawdź alias oraz zmienną środowiskową <b>PDF_' + alias.toUpperCase() + '</b>.');
+                  (e && e.message ? e.message + '<br>' : '') +
+                  'Sprawdź alias oraz zmienną środowiskową <b>PDF_' + alias.toUpperCase() + '</b>. ' +
+                  'Możesz też dodać <code>?mode=gview</code>.');
         });
     })();
   </script>
