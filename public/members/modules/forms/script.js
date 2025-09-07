@@ -34,7 +34,7 @@
 
   function buildFormUrl(id) {
     // Standard embed endpoint for Google Forms
-    return `https://docs.google.com/forms/d/${id}/viewform?embedded=true`;
+    return `https://docs.google.com/forms/d/e/${id}/viewform?embedded=true`;
   }
 
   function showError(show) {
