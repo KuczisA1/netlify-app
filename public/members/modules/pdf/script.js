@@ -254,6 +254,27 @@
   }
 
   // ===== ALIAS -> REMOTE RESOLVE (id param) =====
+  async function openFromProxyFileId(fileId, title){
+    const ep='/.netlify/functions/pdf-file?id='+encodeURIComponent(fileId);
+    const r=await fetch(ep, {cache:'no-store'});
+    if(!r.ok) throw new Error('Proxy pdf-file zwrócił '+r.status);
+    const buf=await r.arrayBuffer();
+    await openPDF(buf, title||fileId);
+  }
+  async function tryOpenViaProxyUrl(url, title){
+    try{
+      const ep='/.netlify/functions/pdf-proxy?url='+encodeURIComponent(url);
+      const r=await fetch(ep, {cache:'no-store'});
+      if(!r.ok) return false;
+      const ct=(r.headers.get('content-type')||'').toLowerCase();
+      if(ct.includes('application/pdf')||ct.includes('octet-stream')){
+        const buf=await r.arrayBuffer();
+        await openPDF(buf, title||url);
+        return true;
+      }
+      return false;
+    }catch(_){ return false; }
+  }
   async function tryLoadByAliasId(){
     const qs=new URLSearchParams(location.search);
     const alias=(qs.get('id')||'').trim();
@@ -265,9 +286,16 @@
       let data=null; try{ data=await r.json(); }catch(_){ }
       if(!r.ok) throw new Error((data&&data.error)||r.statusText||'Błąd serwera');
       const fileId=data&&data.fileId; const directUrl=data&&data.url;
-      if(directUrl){ await openPDF(directUrl, alias); return true; }
+      if(directUrl){
+        // Prefer proxy (CORS-safe), else try direct URL
+        const ok = await tryOpenViaProxyUrl(directUrl, alias).catch(()=>false);
+        if(!ok){ await openPDF(directUrl, alias); }
+        return true;
+      }
       if(!fileId) throw new Error('Nie znaleziono ID pliku dla aliasu "'+alias+'".');
-      // Fallback: embed Google Drive preview
+      // Try backend to stream PDF bytes from Drive and keep our viewer
+      try{ await openFromProxyFileId(fileId, alias); return true; }catch(_){ }
+      // Fallback: embed Google Drive preview if proxy unavailable
       const src='https://drive.google.com/file/d/'+encodeURIComponent(fileId)+'/preview';
       document.documentElement.classList.add('is-embed');
       hideEmbedMessage(); showEmbedFrame(src);
