@@ -214,10 +214,7 @@
     const qs = new URLSearchParams(location.search);
     const path = qs.get('path');
     const title = qs.get('title');
-    const version = qs.get('version');
     if(path){
-      state.version = coerceVersion(version);
-      applyVersioning();
       await openPDF(path, title || path.split('/').pop());
       const ann = qs.get('ann');
       if(ann){ try{ const r=await fetch(ann,{cache:'no-store'}); if(r.ok){ const data=await r.json(); restoreAnnotationsFromObject(data,true); } }catch(_){ } }
@@ -230,11 +227,18 @@
       const res = await fetch('file_path.json', {cache:'no-store'});
       if(!res.ok) return false;
       const cfg = await res.json();
-      state.version = coerceVersion(cfg?.version); applyVersioning();
       if(cfg?.path){ await openPDF(cfg.path, cfg.title || cfg.path.split('/').pop()); if(cfg.annotationsUrl){ try{ const r=await fetch(cfg.annotationsUrl,{cache:'no-store'}); if(r.ok){ restoreAnnotationsFromObject(await r.json(), true); } }catch(_){ } } return true; }
     }catch(_){}
     setTitle('— otwórz plik PDF —');
     return false;
+  }
+
+  // ===== VERSION SOURCE (version.json) =====
+  async function loadVersionFromJson(){
+    try{
+      const res = await fetch('version.json', {cache:'no-store'});
+      if(res.ok){ const v = (await res.json())?.version; state.version = coerceVersion(v); }
+    }catch(_){ /* keep default */ }
   }
 
   // ===== OPEN PDF =====
@@ -691,6 +695,7 @@ ${body}
   // ===== START =====
   bindToolButtons();
   (async ()=>{
+    await loadVersionFromJson();
     const ok = await tryLoadFromParams();
     if(!ok){ await tryLoadFallbackConfig(); }
     applyVersioning();

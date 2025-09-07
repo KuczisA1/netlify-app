@@ -4,6 +4,18 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Podgląd PDF — Chrome‑like + Przybornik</title>
+  <script>
+    // Early mobile detection to avoid initial UI flicker
+    (function(){
+      try{
+        var ua = navigator.userAgent||navigator.vendor||window.opera||'';
+        var phone = /Android|iPhone|iPod|Windows Phone/i.test(ua);
+        var coarse = window.matchMedia && window.matchMedia('(any-pointer: coarse)').matches;
+        var narrow = window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+        if(phone || (coarse && narrow)) document.documentElement.classList.add('is-mobile');
+      }catch(e){}
+    })();
+  </script>
   <link rel="stylesheet" href="style.css" />
   <!-- PDF.js 2.6.347 (klasyczne skrypty) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>

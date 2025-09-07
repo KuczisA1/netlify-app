@@ -110,3 +110,11 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.35 sys
 .is-mobile .sidebar { display: none !important; }
 .is-mobile .app { grid-template-columns: 1fr !important; }
 .is-mobile #toolbox { display: none !important; }
+
+/* Prevent initial flicker on phones before JS toggles class */
+@media (max-width: 640px) and (any-pointer: coarse) {
+  .toolbar { display: none !important; }
+  .sidebar { display: none !important; }
+  #toolbox { display: none !important; }
+  .app { grid-template-columns: 1fr !important; }
+}
