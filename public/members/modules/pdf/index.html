@@ -5,16 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ChemDisk – PDF Viewer</title>
 
-  <!-- Nie wynosić pełnego referrera do zewnętrza -->
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" href="/assets/logo-chemdisk.svg" />
 
   <style>
-    /* Pełny ekran, ciemne tło */
     html, body { height: 100%; margin: 0; background: #0b0b0c; }
 
-    /* IFRAME musi być klikalny i na wierzchu */
+    /* Iframe: pełny ekran, klikalny; popupy zablokuje sandbox (patrz znacznik iframe) */
     #pdfFrame{
       position: fixed; inset: 0; width: 100%; height: 100%;
       border: 0; display: none;
@@ -23,7 +21,7 @@
       background: #000;
     }
 
-    /* Komunikaty tylko, gdy widoczne */
+    /* Overlay z komunikatami (ponad iframe tylko gdy widoczny) */
     #msg{
       position: fixed; inset: 0; z-index: 2;
       display: grid; place-items: center;
@@ -34,6 +32,22 @@
     #msg[hidden]{ display:none !important; }
     #msg b{ color:#fff; }
     .hint{ opacity:.8; font-size:14px; margin-top:.5rem; }
+
+    /* (Opcjonalnie) Maska w prawym górnym rogu, by "schować" ikonę pop-out.
+       Domyślnie wyłączona przez [hidden]. Włączysz parametrem ?mask=1 */
+    #popoutBlocker{
+      position: fixed; top: 0; right: 0;
+      width: clamp(56px, 7vw, 92px);
+      height: clamp(40px, 7vh, 80px);
+      z-index: 3;
+      pointer-events: auto;           /* przechwytuje kliknięcia, by nie doszły do iframa */
+      /* Wariant A: CAŁKOWICIE PRZEZROCZYSTA (ukrywa funkcję, nie zasłania obrazka) */
+      background: transparent;
+      /* Wariant B: delikatna maska wizualna — odkomentuj poniżej, jeśli chcesz też "przykryć" ikonę:
+      background: linear-gradient(135deg, rgba(11,11,12,.95), rgba(11,11,12,.6) 60%, rgba(11,11,12,0) 100%);
+      */
+    }
+    #popoutBlocker[hidden]{ display:none !important; }
   </style>
 </head>
 <body>
@@ -42,7 +56,12 @@
           allowfullscreen
           webkitallowfullscreen
           mozallowfullscreen
-          referrerpolicy="strict-origin-when-cross-origin"></iframe>
+          referrerpolicy="strict-origin-when-cross-origin"
+          <!-- kluczowe: pozwalamy na skrypty i same-origin, ale BEZ allow-popups i bez top-navigation -->
+          sandbox="allow-scripts allow-same-origin"></iframe>
+
+  <!-- Opcjonalna „maska” w prawym górnym rogu -->
+  <div id="popoutBlocker" hidden aria-hidden="true"></div>
 
   <div id="msg" hidden></div>
 
@@ -57,10 +76,13 @@
         box.hidden = false;
       };
 
-      // --- Parametry: ?id=ALIAS [wymagany], opcjonalnie ?mode=gview jako fallback
+      // --- Parametry: ?id=ALIAS [wymagany]
+      //     ?mode=gview  -> fallback viewer
+      //     ?mask=1      -> włącz niewidoczną maskę w prawym górnym rogu
       const params = new URLSearchParams(location.search);
       const alias = (params.get('id') || '').trim();
       const useGView = (params.get('mode') || '').toLowerCase() === 'gview';
+      const wantMask = (params.get('mask') || '') === '1';
 
       if (!alias) {
         showMsg('Brak parametru ?id=ALIAS.',
@@ -73,9 +95,13 @@
         return;
       }
 
+      // (Opcjonalnie) włącz maskę „schowaj/przechwyć kliki” w prawym górnym rogu
+      if (wantMask) {
+        $('popoutBlocker').hidden = false;
+      }
+
       // --- Pobierz ukryte fileId z Netlify Function
       const endpoint = '/.netlify/functions/pdf-key?key=' + encodeURIComponent(alias);
-      $('msg').hidden = false; // pokaż ewentualny komunikat startowy (gdyby ładowało się chwilę)
       showMsg('Ładowanie dokumentu…');
 
       fetch(endpoint, { credentials: 'same-origin' })
@@ -88,7 +114,7 @@
         .then(({ fileId }) => {
           if (!fileId) throw new Error('Brak ID pliku dla aliasu "' + alias + '".');
 
-          // --- Zbuduj URL viewer’a
+          // --- URL viewer’a
           const src = useGView
             ? 'https://docs.google.com/gview?embedded=true&url='
               + encodeURIComponent('https://drive.google.com/uc?export=download&id=' + fileId)
@@ -97,11 +123,10 @@
           const frame = $('pdfFrame');
           frame.src = src;
 
-          // Dopilnuj interakcji
+          // Interakcje i warstwy
           frame.style.pointerEvents = 'auto';
           frame.style.zIndex = '1';
 
-          // Po załadowaniu pokaż iframe, schowaj overlay
           frame.addEventListener('load', () => {
             frame.style.display = 'block';
             $('msg').hidden = true;
@@ -119,14 +144,6 @@
                   (e && e.message ? e.message + '<br>' : '')
                   + 'Sprawdź alias oraz zmienną środowiskową <b>PDF_' + alias.toUpperCase() + '</b>.');
         });
-
-      // Hotkey diagnostyczny: "o" -> otwórz viewer w nowej karcie (nie widać w UI)
-      window.addEventListener('keydown', (e) => {
-        if ((e.key || '').toLowerCase() === 'o') {
-          const src = $('pdfFrame')?.src;
-          if (src) window.open(src, '_blank', 'noopener,noreferrer');
-        }
-      });
     })();
   </script>
 </body>
