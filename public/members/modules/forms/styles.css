@@ -1,8 +1,8 @@
 :root {
-  --bg: #0b0c10;
+  --bg: #0f1f14;          /* lekko zielone tło */
   --fg: #e5e7eb;
   --muted: #9aa0a6;
-  --card: #15171c;
+  --card: #16251c;        /* ciemna zieleń dla kart */
   --radius: 16px;
   --shadow: 0 10px 30px rgba(0,0,0,.35);
 }

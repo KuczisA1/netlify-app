@@ -4,36 +4,45 @@
 
   // ——— Helpers ———
 
-  // Accepts either a plain Forms ID or a full Google Forms URL.
+  // Akceptuje czyste ID lub pełny link do Google Forms.
   function normalizeFormId(raw) {
     if (!raw) return null;
     raw = decodeURIComponent(String(raw).trim());
 
-    // If it's a full URL, try to extract ID from ".../forms/d/<ID>/..."
+    // Jeśli pełny URL, wyciągnij ID z .../forms/d/e/<ID>/... lub .../forms/d/<ID>/...
     try {
       if (/^https?:\/\//i.test(raw)) {
         const u = new URL(raw);
-        const parts = u.pathname.split('/');
-        const dIndex = parts.findIndex(p => p === 'd');
-        if (dIndex !== -1 && parts[dIndex + 1]) {
-          return sanitizeId(parts[dIndex + 1]);
-        }
-        // Fallback: sometimes URLs are already to /d/ID/edit etc.
-      }
-    } catch (_) { /* ignore URL parsing errors */ }
+        const parts = u.pathname.split('/').filter(Boolean); // usuń puste segmenty
+        const dIndex = parts.findIndex(p => p === 'forms') !== -1
+          ? parts.findIndex(p => p === 'd')
+          : parts.findIndex(p => p === 'd');
 
-    // Otherwise assume it's an ID and sanitize.
+        if (dIndex !== -1) {
+          // wariant /forms/d/e/<ID>/...
+          if (parts[dIndex + 1] === 'e' && parts[dIndex + 2]) {
+            return sanitizeId(parts[dIndex + 2]);
+          }
+          // wariant /forms/d/<ID>/...
+          if (parts[dIndex + 1]) {
+            return sanitizeId(parts[dIndex + 1]);
+          }
+        }
+      }
+    } catch (_) { /* ignore */ }
+
+    // W innym wypadku traktuj jako surowe ID.
     return sanitizeId(raw);
   }
 
-  // Allow common characters in Google IDs: letters, digits, dash, underscore
+  // Najczęściej ID ma długość kilkudziesięciu znaków; dopuszczamy litery/cyfry/_/-
   function sanitizeId(id) {
     const m = String(id).match(/[A-Za-z0-9_-]{10,}/);
     return m ? m[0] : null;
   }
 
   function buildFormUrl(id) {
-    // Standard embed endpoint for Google Forms
+    // Nowy, wymagany format: /forms/d/e/{id}/viewform?embedded=true
     return `https://docs.google.com/forms/d/e/${id}/viewform?embedded=true`;
   }
 
@@ -46,7 +55,6 @@
   }
 
   function clearQueryFromBar() {
-    // Remove ?id=... from the address bar without reload
     if (window.history && window.history.replaceState) {
       const clean = window.location.pathname + window.location.hash;
       window.history.replaceState({}, document.title, clean);
@@ -54,12 +62,11 @@
   }
 
   // ——— Main ———
-
   document.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(window.location.search);
     let raw = params.get('id');
 
-    // If no 'id' in URL, try sessionStorage (supports refresh after cleaning URL)
+    // Jeśli brak ?id= w URL, spróbuj z sessionStorage (po czyszczeniu paska)
     if (!raw) {
       raw = sessionStorage.getItem('formEmbedId') || '';
     }
@@ -71,14 +78,14 @@
       return;
     }
 
-    // Persist for refreshes after query removal
+    // Zapamiętaj ID dla odświeżeń po usunięciu query
     sessionStorage.setItem('formEmbedId', formId);
 
-    // Set src
+    // Ustaw src
     const url = buildFormUrl(formId);
     setIframeSrc(url);
 
-    // Clean the address bar if we arrived with ?id=
+    // Po załadowaniu usuń ?id= z paska adresu
     if (params.has('id')) {
       clearQueryFromBar();
     }
@@ -86,6 +93,6 @@
     showError(false);
   });
 
-  // Optional robustness: if iframe fails to load, show error overlay
+  // Gdyby iframe zgłosił błąd ładowania, pokaż overlay
   IFRAME.addEventListener('error', () => showError(true));
 })();
