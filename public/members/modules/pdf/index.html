@@ -10,9 +10,9 @@
   <link rel="icon" href="/assets/logo-chemdisk.svg" />
 
   <style>
-    html, body { height: 100%; margin: 0; background: #0b0b0c; }
+    html, body { height: 100%; margin: 0; background: #0b0b0c; overflow: hidden; }
 
-    /* Iframe: pełny ekran, klikalny; popupy zablokuje sandbox (patrz znacznik iframe) */
+    /* Iframe: pełny ekran, klikalny */
     #pdfFrame{
       position: fixed; inset: 0; width: 100%; height: 100%;
       border: 0; display: none;
@@ -21,7 +21,7 @@
       background: #000;
     }
 
-    /* Overlay z komunikatami (ponad iframe tylko gdy widoczny) */
+    /* Overlay z komunikatami (ponad iframe tylko, gdy widoczny) */
     #msg{
       position: fixed; inset: 0; z-index: 2;
       display: grid; place-items: center;
@@ -31,23 +31,29 @@
     }
     #msg[hidden]{ display:none !important; }
     #msg b{ color:#fff; }
-    .hint{ opacity:.8; font-size:14px; margin-top:.5rem; }
+    .hint{ opacity:.85; font-size:14px; margin-top:.6rem; }
 
-    /* (Opcjonalnie) Maska w prawym górnym rogu, by "schować" ikonę pop-out.
-       Domyślnie wyłączona przez [hidden]. Włączysz parametrem ?mask=1 */
-    #popoutBlocker{
-      position: fixed; top: 0; right: 0;
-      width: clamp(56px, 7vw, 92px);
-      height: clamp(40px, 7vh, 80px);
-      z-index: 3;
-      pointer-events: auto;           /* przechwytuje kliknięcia, by nie doszły do iframa */
-      /* Wariant A: CAŁKOWICIE PRZEZROCZYSTA (ukrywa funkcję, nie zasłania obrazka) */
-      background: transparent;
-      /* Wariant B: delikatna maska wizualna — odkomentuj poniżej, jeśli chcesz też "przykryć" ikonę:
-      background: linear-gradient(135deg, rgba(11,11,12,.95), rgba(11,11,12,.6) 60%, rgba(11,11,12,0) 100%);
+    /* NIEWIDOCZNA maska na prawy górny róg, by „złapać” klik na ikonie pop-out.
+       Jest przesunięta w lewo, aby nie wchodzić pod systemowy scrollbar. */
+    #maskRoot { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
+    #maskRoot[hidden]{ display:none !important; }
+    #maskRoot .hit {
+      position: absolute;
+      top: calc(env(safe-area-inset-top, 0px) + 8px);
+      right: calc(env(safe-area-inset-right, 0px) + 12px); /* odsunięcie od scrollbarów */
+      width: 84px;   /* dostosowane do obszaru przycisku w viewerze */
+      height: 72px;
+      pointer-events: auto;  /* tylko ten niewidoczny prostokąt przechwytuje klik */
+      background: transparent; /* całkowicie niewidoczne */
+      /* Jeśli chcesz subtelne „przykrycie”, odkomentuj:
+      background: linear-gradient(135deg, rgba(11,11,12,.9), rgba(11,11,12,0));
       */
     }
-    #popoutBlocker[hidden]{ display:none !important; }
+
+    @media (max-width: 640px) {
+      /* na małych ekranach ikona jest mniejsza — zawężamy hitbox */
+      #maskRoot .hit { width: 64px; height: 56px; }
+    }
   </style>
 </head>
 <body>
@@ -57,11 +63,11 @@
           webkitallowfullscreen
           mozallowfullscreen
           referrerpolicy="strict-origin-when-cross-origin"
-          <!-- kluczowe: pozwalamy na skrypty i same-origin, ale BEZ allow-popups i bez top-navigation -->
-          sandbox="allow-scripts allow-same-origin"></iframe>
+          <!-- Blokujemy popouty (brak allow-popups), ale zostawiamy inne potrzebne uprawnienia -->
+          sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-pointer-lock"></iframe>
 
-  <!-- Opcjonalna „maska” w prawym górnym rogu -->
-  <div id="popoutBlocker" hidden aria-hidden="true"></div>
+  <!-- Niewidoczna maska (można wyłączyć ?mask=0) -->
+  <div id="maskRoot" hidden aria-hidden="true"><div class="hit"></div></div>
 
   <div id="msg" hidden></div>
 
@@ -70,19 +76,20 @@
       const $ = (id) => document.getElementById(id);
       const showMsg = (text, hint) => {
         const box = $('msg');
-        box.innerHTML = '<div><b>' + (text || 'Błąd') + '</b>'
-          + (hint ? '<div class="hint">' + hint + '</div>' : '')
-          + '</div>';
+        box.innerHTML =
+          '<div><b>' + (text || 'Błąd') + '</b>' +
+          (hint ? '<div class="hint">' + hint + '</div>' : '') +
+          '</div>';
         box.hidden = false;
       };
 
       // --- Parametry: ?id=ALIAS [wymagany]
       //     ?mode=gview  -> fallback viewer
-      //     ?mask=1      -> włącz niewidoczną maskę w prawym górnym rogu
+      //     ?mask=0      -> wyłącz maskę ikony pop-out
       const params = new URLSearchParams(location.search);
       const alias = (params.get('id') || '').trim();
       const useGView = (params.get('mode') || '').toLowerCase() === 'gview';
-      const wantMask = (params.get('mask') || '') === '1';
+      const maskEnabled = (params.get('mask') || '') !== '0';
 
       if (!alias) {
         showMsg('Brak parametru ?id=ALIAS.',
@@ -95,12 +102,9 @@
         return;
       }
 
-      // (Opcjonalnie) włącz maskę „schowaj/przechwyć kliki” w prawym górnym rogu
-      if (wantMask) {
-        $('popoutBlocker').hidden = false;
-      }
+      if (maskEnabled) $('maskRoot').hidden = false;
 
-      // --- Pobierz ukryte fileId z Netlify Function
+      // --- Pobierz ukryte fileId
       const endpoint = '/.netlify/functions/pdf-key?key=' + encodeURIComponent(alias);
       showMsg('Ładowanie dokumentu…');
 
@@ -114,30 +118,31 @@
         .then(({ fileId }) => {
           if (!fileId) throw new Error('Brak ID pliku dla aliasu "' + alias + '".');
 
-          // --- URL viewer’a
+          // URL viewer’a
           const src = useGView
-            ? 'https://docs.google.com/gview?embedded=true&url='
-              + encodeURIComponent('https://drive.google.com/uc?export=download&id=' + fileId)
+            ? 'https://docs.google.com/gview?embedded=true&url=' +
+              encodeURIComponent('https://drive.google.com/uc?export=download&id=' + fileId)
             : 'https://drive.google.com/file/d/' + encodeURIComponent(fileId) + '/preview';
 
           const frame = $('pdfFrame');
           frame.src = src;
 
-          // Interakcje i warstwy
-          frame.style.pointerEvents = 'auto';
-          frame.style.zIndex = '1';
-
+          // Po załadowaniu pokaż iframe i schowaj overlay
+          let loaded = false;
           frame.addEventListener('load', () => {
+            loaded = true;
             frame.style.display = 'block';
             $('msg').hidden = true;
           });
 
-          // Diagnostyka: globalne CSS
-          const cs = getComputedStyle(frame);
-          if (cs.pointerEvents === 'none') {
-            console.warn('Globalne CSS wyłączyły pointer-events na iframe. Nadpisuję na auto.');
-            frame.style.pointerEvents = 'auto';
-          }
+          // Diagnostyka po 8 s: jeśli viewer nie wystartował, pokaż podpowiedź z fallbackiem
+          setTimeout(() => {
+            if (!loaded) {
+              showMsg('Nie udało się wczytać podglądu.',
+                      'Sprawdź udostępnienie pliku (Anyone with the link). '
+                      + 'Możesz też dodać parametr <code>?mode=gview</code> do adresu.');
+            }
+          }, 8000);
         })
         .catch((e) => {
           showMsg('Nie udało się wczytać dokumentu.',
