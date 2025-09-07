@@ -11,12 +11,11 @@
 
   <style>
     :root{
-      --mask-gap: 0px;       /* odsunięcie od prawej krawędzi (zostaw 0) */
-      --rail-width: 96px;    /* szerokość pasa maski po prawej */
-      --corner-w: 84px;      /* szerokość hitboxa rogu */
-      --corner-h: 72px;      /* wysokość hitboxa rogu */
-      --corner-gap-x: 12px;  /* odsunięcie rogu od prawej */
-      --corner-gap-y: 8px;   /* odsunięcie rogu od góry */
+      /* ——— USTAWIENIA MASKI ——— */
+      --mask-gap: 0px;           /* odsunięcie całej maski od prawej krawędzi */
+      --rail-width: 96px;        /* docelowa szerokość pasa maski */
+      --rail-height: 25vh;       /* tylko 25% wysokości okna */
+      --scrollbar-w: 0px;        /* JS wpisze szerokość paska przewijania (jeśli jest) */
     }
 
     html, body { height: 100%; margin: 0; background: #0b0b0c; overflow: hidden; }
@@ -30,52 +29,40 @@
       background: #000;
     }
 
-    /* Overlay z komunikatami (lekki, niczego nie „przycina”) */
+    /* Overlay z komunikatami (lekki) */
     #msg{
       position: fixed; inset: 0; z-index: 2;
       display: grid; place-items: center;
       padding: 24px;
-      font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      font: 16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial;
       color: #eaeaea; text-align: center;
     }
     #msg b{ color:#fff; }
     #msg[hidden]{ display:none !important; }
     .hint{ opacity:.85; font-size:14px; margin-top:.6rem; }
 
-    /* Maska anty-popout: root nie łapie eventów; tylko „hitboxy” je przechwytują */
+    /* Root maski nie przechwytuje eventów; tylko „hitbox” je łapie */
     #maskRoot{
-      position: fixed; inset: 0; z-index: 3;
-      pointer-events: none;
+      position: fixed; inset: 0; z-index: 3; pointer-events: none;
     }
     #maskRoot[hidden]{ display:none !important; }
-    #maskRoot .hit{
-      position: absolute;
-      pointer-events: auto;
-      background: transparent; /* całkowicie niewidoczne */
-      /* Jeśli chcesz lekko zasłonić ikonę, dodaj np.:
-      background: linear-gradient(90deg, rgba(11,11,12,.6), rgba(11,11,12,0));
-      */
-    }
-    /* Pionowy pas po prawej – „rail” (domyślny) */
+
+    /* Pionowy pas po prawej – tylko górne 25% okna */
     #maskRoot .rail{
-      top: 0;
-      right: var(--mask-gap);
-      width: var(--rail-width);
-      height: 100%;
-    }
-    /* Mały hitbox w prawym górnym rogu – „corner” */
-    #maskRoot .corner{
-      top: calc(env(safe-area-inset-top, 0px) + var(--corner-gap-y));
-      right: calc(env(safe-area-inset-right, 0px) + var(--corner-gap-x));
-      width: var(--corner-w);
-      height: var(--corner-h);
+      position: absolute;
+      top: calc(env(safe-area-inset-top, 0px) + 4px);
+      right: calc(var(--mask-gap) + var(--scrollbar-w));
+      /* szerokość przycięta o realną szerokość paska przewijania strony */
+      width: max(0px, calc(var(--rail-width) - var(--scrollbar-w)));
+      height: var(--rail-height);
+      pointer-events: auto;
+      background: transparent;          /* całkiem niewidoczna */
+      border-bottom-left-radius: 12px;  /* estetyczne zaokrąglenie */
     }
 
     @media (max-width: 640px){
       :root{
-        --rail-width: 72px;
-        --corner-w: 64px;
-        --corner-h: 56px;
+        --rail-width: 72px;   /* węższy pas na mobile */
       }
     }
   </style>
@@ -89,10 +76,9 @@
           referrerpolicy="strict-origin-when-cross-origin"
           sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-pointer-lock"></iframe>
 
-  <!-- Maska anty-popout (tryb wybierany parametrem ?mask=rail|corner|0) -->
+  <!-- Maska anty-popout (domyślnie: WŁĄCZONA; wyłącz ?mask=0) -->
   <div id="maskRoot" hidden aria-hidden="true">
-    <div class="hit rail" hidden></div>
-    <div class="hit corner" hidden></div>
+    <div class="rail" hidden></div>
   </div>
 
   <div id="msg" hidden></div>
@@ -109,14 +95,11 @@
         box.hidden = false;
       };
 
-      // Parametry:
-      // ?id=ALIAS [wymagany]
-      // ?mode=gview  -> fallback viewer
-      // ?mask=rail|corner|0  -> wybór maski (domyślnie: rail)
+      // —— Parametry: ?id=ALIAS [wymagany], ?mode=gview (fallback), ?mask=0 (wyłącz maskę)
       const params = new URLSearchParams(location.search);
       const alias = (params.get('id') || '').trim();
-      const mode = (params.get('mode') || '').toLowerCase();
-      const maskParam = (params.get('mask') || 'rail').toLowerCase();
+      const useGView = (params.get('mode') || '').toLowerCase() === 'gview';
+      const maskEnabled = (params.get('mask') || '') !== '0';
 
       if (!alias) {
         showMsg('Brak parametru ?id=ALIAS.',
@@ -129,20 +112,22 @@
         return;
       }
 
-      // Ustaw maskę (lekka, nie wpływa na wydajność)
-      const maskRoot = $('maskRoot');
-      const maskRail = maskRoot.querySelector('.rail');
-      const maskCorner = maskRoot.querySelector('.corner');
-      if (maskParam !== '0') {
+      // ——— Pomiar szerokości paska przewijania strony (gdy jest widoczny) i zapis do CSS var
+      function updateScrollbarWidthVar(){
+        const sbw = window.innerWidth - document.documentElement.clientWidth; // 0 na macOS overlay
+        document.documentElement.style.setProperty('--scrollbar-w', (sbw > 0 ? sbw : 0) + 'px');
+      }
+      updateScrollbarWidthVar();
+      window.addEventListener('resize', updateScrollbarWidthVar);
+
+      // ——— Włącz maskę (wąski pas po prawej, tylko górne 25% wysokości)
+      if (maskEnabled) {
+        const maskRoot = $('maskRoot');
         maskRoot.hidden = false;
-        if (maskParam === 'corner') {
-          maskCorner.hidden = false;
-        } else {
-          maskRail.hidden = false;  // domyślne
-        }
+        maskRoot.querySelector('.rail').hidden = false;
       }
 
-      // Pobierz ukryte fileId
+      // ——— Pobierz ukryte fileId
       const endpoint = '/.netlify/functions/pdf-key?key=' + encodeURIComponent(alias);
       showMsg('Ładowanie dokumentu…');
 
@@ -156,8 +141,7 @@
         .then(({ fileId }) => {
           if (!fileId) throw new Error('Brak ID pliku dla aliasu "' + alias + '".');
 
-          // URL viewer’a
-          const useGView = (mode === 'gview');
+          // ——— URL viewer’a
           const src = useGView
             ? 'https://docs.google.com/gview?embedded=true&url=' +
               encodeURIComponent('https://drive.google.com/uc?export=download&id=' + fileId)
@@ -172,7 +156,7 @@
             $('msg').hidden = true;
           });
 
-          // Minimalna diagnostyka (bez zbędnych timerów)
+          // Minimalna diagnostyka CSS
           const cs = getComputedStyle(frame);
           if (cs.pointerEvents === 'none') frame.style.pointerEvents = 'auto';
         })
