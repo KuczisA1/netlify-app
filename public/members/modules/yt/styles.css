@@ -1,5 +1,5 @@
 :root{
-  --bg:#0b0f14; --card:#121821; --muted:#8aa0b3; --text:#e6edf3;
+  --bg:#0b0f14; --panel:#0f141b; --muted:#8aa0b3; --text:#e6edf3;
   --accent:#5cc8ff; --accent-2:#8b5cf6; --border:rgba(255,255,255,.12);
   --ring:0 0 0 2px rgba(92,200,255,.35);
 }
@@ -9,45 +9,48 @@ html,body{height:100%}
 body{
   margin:0; color:var(--text);
   font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;
-  background:
-    radial-gradient(1000px 500px at 10% -10%, rgba(139,92,246,.25), transparent 60%),
-    radial-gradient(800px 400px at 90% -20%, rgba(92,200,255,.2), transparent 55%),
-    var(--bg);
-  -webkit-user-select:none; user-select:none; /* utrudnia kopiowanie w UI */
+  background: var(--bg);
+  -webkit-user-select:none; user-select:none;
 }
 
-.topbar{
-  display:flex; align-items:center; justify-content:space-between;
-  padding: clamp(10px,2vw,16px);
-  backdrop-filter:saturate(1.2) blur(8px);
-  background: linear-gradient(180deg, rgba(18,24,33,.9), rgba(18,24,33,.6));
-  border-bottom:1px solid rgba(255,255,255,.07);
-  position:sticky; top:0; z-index:10;
+.stage{
+  display:grid; place-items:center; height:100dvh; width:100vw; padding:0; margin:0;
 }
-.brand{display:flex; align-items:center; gap:.7rem}
-.brand img{height:28px}
-.title{font-weight:600; letter-spacing:.2px}
 
-.stage{display:grid; place-items:center; padding:clamp(12px,3vw,28px)}
-.player-card{
-  width:min(1200px,96vw);
-  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-  border:1px solid rgba(255,255,255,.1);
-  border-radius:20px; padding:clamp(10px,2vw,16px);
-  box-shadow:0 10px 30px rgba(0,0,0,.35);
-}
+/* Główna ramka odtwarzacza */
 .player-shell{
-  position:relative; width:100%;
-  border-radius:16px; overflow:hidden; background:#070a0e;
+  position:relative; width:min(100vw, 100vh * 16 / 9); /* dopasuj do okna */
+  aspect-ratio:16/9; background:#000; overflow:hidden;
 }
-.player{aspect-ratio:16/9; width:100%;}
-.player iframe{width:100%; height:100%; border:0; display:block}
 
-.controls{
-  display:grid; grid-template-columns:auto auto 1fr auto auto auto auto auto;
-  gap:.6rem; align-items:center; padding:.6rem;
-  background:rgba(0,0,0,.35); border-top:1px solid var(--border);
+/* Player (iframe w środku) */
+.player { width:100%; height:100%; }
+.player iframe{ width:100%; height:100%; border:0; display:block }
+
+/* Overlay blokujący kliknięcia w wideo */
+.click-overlay{
+  position:absolute; inset:0; pointer-events:auto; /* łapie wszystkie kliki */
+  background:transparent; /* niewidoczny, ale aktywny */
+  z-index:5;
 }
+
+/* Pasek kontrolek na dole */
+.controls{
+  position:absolute; left:0; right:0; bottom:0;
+  display:grid; grid-template-columns:auto auto 1fr auto auto auto auto auto;
+  gap:.6rem; align-items:center; padding:.6rem .7rem;
+  background: linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.55) 35%, rgba(0,0,0,.75));
+  border-top:1px solid rgba(255,255,255,.08);
+  transform: translateY(110%);
+  opacity:0;
+  transition: transform .22s ease, opacity .22s ease;
+  z-index:10;
+}
+.controls.visible{
+  transform: translateY(0);
+  opacity:1;
+}
+
 @media (max-width:720px){
   .controls{grid-template-columns:auto 1fr auto auto auto}
   #volume, .rateLab{display:none}
@@ -55,14 +58,14 @@ body{
 
 .btn{
   appearance:none; border:1px solid var(--border);
-  background:rgba(255,255,255,.05); color:var(--text);
-  padding:.45rem .6rem; border-radius:12px; cursor:pointer; outline:none;
+  background:rgba(255,255,255,.08); color:var(--text);
+  padding:.45rem .6rem; border-radius:10px; cursor:pointer; outline:none;
 }
-.btn:hover{background:rgba(255,255,255,.08)}
+.btn:hover{background:rgba(255,255,255,.12)}
 .btn:focus{box-shadow:var(--ring)}
 .icon .i{width:20px; height:20px; fill:currentColor; display:block}
 
-.time{font-variant-numeric:tabular-nums; opacity:.9; min-width:3.5ch; text-align:center}
+.time{font-variant-numeric:tabular-nums; opacity:.95; min-width:3.5ch; text-align:center}
 
 input[type="range"]{
   -webkit-appearance:none; appearance:none; height:6px; border-radius:999px; background:#2a3340; outline:none; cursor:pointer;
@@ -80,13 +83,17 @@ input[type="range"]::-moz-range-thumb{
 #volume{width:120px}
 .rateLab select{
   appearance:none; border:1px solid var(--border);
-  background:rgba(255,255,255,.05); color:var(--text);
-  padding:.4rem .55rem; border-radius:10px; outline:none;
+  background:rgba(255,255,255,.08); color:var(--text);
+  padding:.4rem .55rem; border-radius:8px; outline:none;
 }
 .rateLab select:focus{box-shadow:var(--ring)}
 
-.msg{margin-top:.8rem; color:var(--muted); min-height:1.25rem}
-.footer{text-align:center; color:var(--muted); padding:20px 12px}
+.msg{
+  position:fixed; left:50%; transform:translateX(-50%);
+  bottom:14px; color:var(--muted); min-height:1.25rem; text-align:center;
+  background:rgba(0,0,0,.5); border:1px solid rgba(255,255,255,.08);
+  padding:.35rem .6rem; border-radius:8px; backdrop-filter:blur(6px);
+}
 
-/* dodatkowe utrudnienie kopiowania z UI */
+/* Drobna ochrona przed łatwym klikaniem/kopiowaniem po UI */
 img, svg, canvas, video{pointer-events:none}

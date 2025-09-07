@@ -1,49 +1,47 @@
-/* ============================
-   YT Player z ENV (Netlify)
-   - pobiera obfuskowane ID z /.netlify/functions/yt-key?id=YT_XXX
-   - zero inline JS (CSP-friendly), zero plików JSON
-   ============================ */
+/* ====== Minimal full-screen YT player z auto-hide controlsem ====== */
 
 const qs = (s) => document.querySelector(s);
 function fmtTime(s){ s=Math.max(0,Math.floor(s||0)); const m=Math.floor(s/60), r=s%60; return `${m}:${String(r).padStart(2,"0")}`; }
-function decodeObf(arr){ return String.fromCharCode(...arr.map(n => n ^ 73)); }
+function decodeObf(arr){ return String.fromCharCode(...arr.map(n => n ^ 73)); } // XOR 73
 function maskId(id){ if(!id) return ""; return id.length<=4 ? "***" : id.slice(0,2)+"*".repeat(id.length-4)+id.slice(-2); }
+async function safeJson(r){ try{ return await r.json(); } catch{ return null; } }
 
 window.addEventListener("contextmenu", e => e.preventDefault(), {capture:true});
 window.addEventListener("keydown", e => {
-  if ((e.ctrlKey || e.metaKey) && ["u","s","c"].includes(e.key.toLowerCase())) e.preventDefault();
+  const blk = (e.ctrlKey || e.metaKey) && ["u","s","c"].includes(e.key.toLowerCase());
+  if (blk) e.preventDefault();
 }, {capture:true});
 
 const state = {
   domReady:false, apiReady:false, confReady:false,
   player:null, ticker:null, dragging:false, loadedOnce:false,
-  videoId:null, key:null, elements:{}
+  videoId:null, key:null, elements:{},
+  hideTimer:null, isMouseActive:false
 };
-
-window.onYouTubeIframeAPIReady = function(){ state.apiReady = true; maybeInit(); };
 
 document.addEventListener("DOMContentLoaded", () => {
   state.domReady = true;
-
-  // logo fallback
-  const logo = document.getElementById("brandLogo");
-  logo?.addEventListener("error", () => {
-    const span = document.createElement("span");
-    span.textContent = "ChemDisk"; span.className = "title"; logo.replaceWith(span);
-  }, { once:true });
-
   state.elements = {
-    msg: qs("#msg"), playBtn: qs("#playPause"), seek: qs("#seek"),
-    vol: qs("#volume"), muteBtn: qs("#muteToggle"), rateSel: qs("#rate"),
-    fsBtn: qs("#fullscreen"), timeNow: qs("#timeNow"), timeDur: qs("#timeDur"),
-    shell: qs("#playerShell")
+    shell: qs("#playerShell"),
+    overlay: qs("#clickOverlay"),
+    controls: qs("#controls"),
+    msg: qs("#msg"),
+    playBtn: qs("#playPause"),
+    seek: qs("#seek"),
+    vol: qs("#volume"),
+    muteBtn: qs("#muteToggle"),
+    rateSel: qs("#rate"),
+    fsBtn: qs("#fullscreen"),
+    timeNow: qs("#timeNow"),
+    timeDur: qs("#timeDur"),
   };
-
   bindUI();
   fetchConfig();
 });
 
-// --- pobranie obfuskowanego ID z ENV przez Netlify Function ---
+window.onYouTubeIframeAPIReady = function(){ state.apiReady = true; maybeInit(); };
+
+/* --- Env/Netlify config --- */
 async function fetchConfig(){
   try{
     const p = new URLSearchParams(location.search);
@@ -54,28 +52,22 @@ async function fetchConfig(){
     if (!r.ok) {
       const e = await safeJson(r);
       setMsg(e?.error === "not_found_or_bad_length"
-        ? `Brak ENV "${state.key}" albo ma złą długość (powinno być 11 znaków).`
+        ? `Brak ENV "${state.key}" albo ma złą długość (11 znaków).`
         : `Błąd pobierania klucza (${r.status}).`);
       return;
     }
     const data = await r.json(); // { ok, key, obf:[...] }
-    if (!data?.ok || !Array.isArray(data.obf)) {
-      setMsg("Zła odpowiedź serwera z kluczem.");
-      return;
-    }
+    if (!data?.ok || !Array.isArray(data.obf)) { setMsg("Zła odpowiedź serwera z kluczem."); return; }
+
     state.videoId = decodeObf(data.obf);
-    if (state.videoId.length !== 11) {
-      setMsg("ID z ENV wygląda na niepoprawne (nie 11 znaków).");
-      return;
-    }
+    if (state.videoId.length !== 11) { setMsg("ID z ENV wygląda na niepoprawne (nie 11 znaków)."); return; }
+
     state.confReady = true;
-    maybeInit(); // jeśli API i DOM też gotowe
+    maybeInit();
   }catch(err){
     setMsg("Nie udało się pobrać konfiguracji ID.");
   }
 }
-
-async function safeJson(r){ try{ return await r.json(); } catch{ return null; } }
 
 const PLAYER_VARS = {
   controls:0, modestbranding:1, rel:0, fs:0, disablekb:1, playsinline:1, iv_load_policy:3, origin:location.origin
@@ -83,7 +75,6 @@ const PLAYER_VARS = {
 
 function maybeInit(){
   if (!state.domReady || !state.apiReady || !state.confReady || state.player) return;
-
   state.player = new YT.Player("player", {
     width:"100%", height:"100%", videoId:"",
     host:"https://www.youtube-nocookie.com", playerVars: PLAYER_VARS,
@@ -91,14 +82,28 @@ function maybeInit(){
   });
 }
 
+/* --- YT events --- */
 function onReady(){
-  try{ state.player.setVolume(100); updateMuteIcon(); setMsg(""); }catch{}
+  try{
+    state.player.setVolume(100);
+    updateMuteIcon();
+    setMsg("");
+    showControls(); // na start pokaż
+  }catch{}
 }
 
 function onStateChange(ev){
   const st = ev.data, YTS = YT.PlayerState;
   updatePlayIcon(st === YTS.PLAYING);
-  if (st === YTS.PLAYING) startTicker(); else { stopTicker(); if (st === YTS.ENDED){ setSeek(0); setNow(0);} }
+
+  if (st === YTS.PLAYING) {
+    startTicker();
+    scheduleAutoHide(); // schowaj po chwili
+  } else {
+    stopTicker();
+    showControls(true); // zawsze pokaż przy pauzie/stopie
+    if (st === YTS.ENDED){ setSeek(0); setNow(0); }
+  }
   const d = safeGetDuration(); if (d > 0) setDur(d);
 }
 
@@ -115,9 +120,21 @@ function onError(e){
   console.warn("[YT-ERROR]", code);
 }
 
-// ---------- UI ----------
+/* --- Controls logic --- */
 function bindUI(){
-  const { playBtn, seek, vol, muteBtn, rateSel, fsBtn, shell } = state.elements;
+  const { playBtn, seek, vol, muteBtn, rateSel, fsBtn, shell, controls } = state.elements;
+
+  // Auto-hide wyzwalacze
+  const nudge = () => {
+    showControls(true);
+    scheduleAutoHide();
+  };
+  ["mousemove","touchstart","pointermove"].forEach(evt => {
+    shell.addEventListener(evt, nudge, {passive:true});
+  });
+
+  // Blokada kliknięć w obszarze wideo (overlay łapie zdarzenia)
+  state.elements.overlay?.addEventListener("click", nudge);
 
   playBtn?.addEventListener("click", () => {
     if (!state.loadedOnce) {
@@ -135,11 +152,12 @@ function bindUI(){
     if (!state.dragging) return;
     const d = safeGetDuration(); const t = (seek.value/1000)*d; setNow(t);
   });
-  const startDrag = () => (state.dragging = true);
+  const startDrag = () => { state.dragging = true; showControls(true); clearAutoHide(); };
   const commitSeek = () => {
     const d = safeGetDuration();
     if (d > 0) state.player.seekTo((seek.value/1000)*d, true);
     state.dragging = false;
+    scheduleAutoHide();
   };
   seek?.addEventListener("mousedown", startDrag);
   seek?.addEventListener("touchstart", startDrag, { passive:true });
@@ -172,6 +190,7 @@ function bindUI(){
     try { if (!document.fullscreenElement) await shell.requestFullscreen(); else await document.exitFullscreen(); } catch {}
   });
 
+  // Klawiatura (poza polami formularzy)
   window.addEventListener("keydown", (e) => {
     if (["INPUT","TEXTAREA","SELECT"].includes(document.activeElement?.tagName)) return;
     if (e.code === "Space") { e.preventDefault(); playBtn?.click(); }
@@ -182,7 +201,35 @@ function bindUI(){
   });
 }
 
-// ---------- ticker ----------
+/* --- Auto-hide helpers --- */
+function showControls(force){
+  const { controls } = state.elements;
+  if (!controls) return;
+  controls.classList.add("visible");
+  if (!force) scheduleAutoHide();
+}
+function hideControls(){
+  const { controls } = state.elements;
+  if (!controls) return;
+  // chowamy tylko gdy odtwarzanie
+  try{
+    if (state.player?.getPlayerState() === YT.PlayerState.PLAYING && !state.dragging){
+      controls.classList.remove("visible");
+    }
+  }catch{}
+}
+function scheduleAutoHide(){
+  clearAutoHide();
+  try{
+    if (state.player?.getPlayerState() !== YT.PlayerState.PLAYING) return; // przy pauzie – nie chowamy
+  }catch{}
+  state.hideTimer = setTimeout(hideControls, 1100); // ~1.1s bezczynności
+}
+function clearAutoHide(){
+  if (state.hideTimer){ clearTimeout(state.hideTimer); state.hideTimer = null; }
+}
+
+/* --- ticker --- */
 function startTicker(){
   stopTicker();
   state.ticker = setInterval(() => {
@@ -192,7 +239,7 @@ function startTicker(){
 }
 function stopTicker(){ if (state.ticker) { clearInterval(state.ticker); state.ticker = null; } }
 
-// ---------- UI helpers ----------
+/* --- UI helpers --- */
 function setMsg(t){ if (state.elements.msg) state.elements.msg.textContent = t || ""; }
 function setSeek(v){ state.elements.seek && (state.elements.seek.value = String(v)); }
 function setNow(t){ state.elements.timeNow && (state.elements.timeNow.textContent = fmtTime(t)); }
@@ -215,15 +262,14 @@ function updateMuteIcon(){
 function togglePlay(){
   try {
     const st = state.player.getPlayerState();
-    if (st === YT.PlayerState.PLAYING) state.player.pauseVideo();
-    else state.player.playVideo();
+    if (st === YT.PlayerState.PLAYING) { state.player.pauseVideo(); showControls(true); }
+    else { state.player.playVideo(); scheduleAutoHide(); }
   } catch {}
 }
-
 function safeGetTime(){ try { return state.player.getCurrentTime() || 0; } catch { return 0; } }
 function safeGetDuration(){ try { return state.player.getDuration() || 0; } catch { return 0; } }
 
-// Diagnostyka (bez ujawniania pełnego ID)
+/* Diagnostyka */
 window.__yt_diag = () => ({
   ytApiLoaded: !!window.YT, domReady: state.domReady, apiReady: state.apiReady, confReady: state.confReady,
   playerReady: !!state.player, key: state.key, idLen: state.videoId ? state.videoId.length : 0, idMasked: maskId(state.videoId)
