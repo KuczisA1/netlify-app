@@ -34,6 +34,26 @@
     colorPicker: $('#colorPicker'), widthRange: $('#widthRange')
   };
 
+  // ===== MOBILE DETECTION =====
+  function isMobilePhone(){
+    const ua = (navigator.userAgent||navigator.vendor||window.opera||'');
+    const phoneUA = /Android|iPhone|iPod|Windows Phone/i.test(ua);
+    const coarse = (window.matchMedia && window.matchMedia('(any-pointer: coarse)').matches);
+    const narrow = (window.matchMedia && window.matchMedia('(max-width: 640px)').matches);
+    return phoneUA || (coarse && narrow);
+  }
+  function applyMobileLayoutIfNeeded(){
+    try{
+      if(isMobilePhone()){
+        document.documentElement.classList.add('is-mobile');
+      } else {
+        document.documentElement.classList.remove('is-mobile');
+      }
+    }catch(_){ }
+  }
+  applyMobileLayoutIfNeeded();
+  window.addEventListener('resize', applyMobileLayoutIfNeeded);
+
   // ===== HELPERS =====
   function clamp(n,min,max){ return Math.min(max, Math.max(min, n)); }
   function fmtPct(n){ return Math.round(n*100)+'%'; }
@@ -127,6 +147,7 @@
 
   // ===== THUMBS =====
   async function buildThumbnails(){
+    if(document.documentElement.classList.contains('is-mobile')) return; // skip on phones
     state.thumbsRendered.clear(); if(!el.paneThumbs) return; el.paneThumbs.innerHTML='';
     for(let i=1;i<=state.total;i++){
       const holder=document.createElement('div'); holder.className='thumb'; holder.dataset.page=String(i);

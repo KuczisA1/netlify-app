@@ -104,3 +104,9 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.35 sys
   .app { grid-template-columns: 1fr; }
   .sidebar { display: none; }
 }
+
+/* Mobile-only mode: hide toolbars and sidebar completely */
+.is-mobile .toolbar { display: none !important; }
+.is-mobile .sidebar { display: none !important; }
+.is-mobile .app { grid-template-columns: 1fr !important; }
+.is-mobile #toolbox { display: none !important; }
