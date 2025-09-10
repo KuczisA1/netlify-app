@@ -123,12 +123,14 @@
       updateAuthLinks(user);
 
       const emailEl = $('user-email');
+      const emailEl2 = $('user-email-current');
       const nameEl = $('user-name');
       const unameEl = $('user-username');
       const statusEl = $('user-status');
       const hintEl = $('status-hint');
 
-      if (emailEl) emailEl.textContent = user.email || '—';
+      if (emailEl)  emailEl.textContent  = user.email || '—';
+      if (emailEl2) emailEl2.textContent = user.email || '—';
 
       const { displayName, username } = deriveNames(user);
       document.querySelectorAll('.js-username').forEach(el => { el.textContent = username || '—'; });
@@ -165,73 +167,7 @@
     location.replace(path); // bez dorzucania historii
   }
 
-  // ======== CROSS-DEVICE LOGOUT (wyloguj jeśli zalogowano się gdzie indziej) ========
-  // >>> Aby WYŁĄCZYĆ, zakomentuj cały ten blok LUB ustaw flagę na false:
-  const ENABLE_CROSS_DEVICE_LOGOUT = false;
-
-  let stopSessionWatcher = null;
-
-  function getLocalSessionVer()   { return localStorage.getItem('cd_session_ver') || ''; }
-  function setLocalSessionVer(v)  { if (v) localStorage.setItem('cd_session_ver', v); }
-  function clearLocalSessionVer() { localStorage.removeItem('cd_session_ver'); }
-
-  async function fetchRemoteUser(token) {
-    const res = await fetch('/.netlify/identity/user', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (!res.ok) throw new Error('identity/user fetch failed');
-    return res.json();
-  }
-
-  async function seedSessionVersion() {
-    if (!ENABLE_CROSS_DEVICE_LOGOUT) return;
-    const ni = window.netlifyIdentity;
-    const u = ni.currentUser();
-    if (!u) { clearLocalSessionVer(); return; }
-    try {
-      const token = await u.jwt(true);
-      const data  = await fetchRemoteUser(token);
-      const ver   = data && data.user_metadata && data.user_metadata.current_session;
-      if (ver) setLocalSessionVer(ver);
-    } catch {}
-  }
-
-  function startSessionWatcher() {
-    if (!ENABLE_CROSS_DEVICE_LOGOUT) return () => {};
-    let active = true;
-
-    async function check() {
-      if (!active || !hasIdentity()) return;
-      const ni = window.netlifyIdentity;
-      const u  = ni.currentUser();
-      if (!u) return;
-      try {
-        const token = await u.jwt(true);
-        const data  = await fetchRemoteUser(token);
-        const serverVer = data && data.user_metadata && data.user_metadata.current_session;
-        const localVer  = getLocalSessionVer();
-        if (serverVer && localVer && serverVer !== localVer) {
-          // Inna sesja zalogowana → wyloguj tutaj
-          clearJwtCookie();
-          clearLocalSessionVer();
-          try { await ni.logout(); } catch {}
-          safeGo(`${norm(PATHS.loginBase)}/`);
-        }
-      } catch {}
-    }
-
-    const id = setInterval(check, 30000); // co 30s
-    check(); // od razu
-    const onVis = () => { if (document.visibilityState === 'visible') check(); };
-    document.addEventListener('visibilitychange', onVis);
-
-    return () => {
-      active = false;
-      clearInterval(id);
-      document.removeEventListener('visibilitychange', onVis);
-    };
-  }
-  // ======== /CROSS-DEVICE LOGOUT ========
+  // (Usunięto cross-device logout: brak ukrytych wylogowań, zero pollingu)
 
   // ===== Guard właściwy =====
   async function guardAndPaintCore() {
@@ -309,13 +245,8 @@
       if (user) {
         const ok = await ensureFreshJwtCookieOrLogout();
         if (!ok) { await runGuard(); return; }
-        await seedSessionVersion();
-        if (stopSessionWatcher) stopSessionWatcher();
-        stopSessionWatcher = startSessionWatcher();
       } else {
         clearJwtCookie();
-        clearLocalSessionVer();
-        if (stopSessionWatcher) { stopSessionWatcher(); stopSessionWatcher = null; }
       }
       await runGuard();
     });
@@ -324,17 +255,12 @@
       updateAuthLinks(user);
       const ok = await ensureFreshJwtCookieOrLogout();
       if (!ok) return;
-      await seedSessionVersion();
-      if (stopSessionWatcher) stopSessionWatcher();
-      stopSessionWatcher = startSessionWatcher();
       safeGo(PATHS.dashboard);
     });
 
     window.netlifyIdentity.on('logout', () => {
       updateAuthLinks(null);
       clearJwtCookie();
-      clearLocalSessionVer();
-      if (stopSessionWatcher) { stopSessionWatcher(); stopSessionWatcher = null; }
       safeGo(PATHS.home[0]); // '/'
     });
 

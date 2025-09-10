@@ -103,3 +103,9 @@
   for = "/members/modules/slides/*"
   [headers.values]
     Cache-Control = "no-store"
+
+# --- Fallback 404 dla pozostałych ścieżek ---
+[[redirects]]
+  from = "/*"
+  to   = "/404.html"
+  status = 404

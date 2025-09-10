@@ -4,9 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Logowanie – Aplikacja</title>
-  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="/login/style.css" />
   <!-- Widget Identity (dla sesji i eventów) -->
   <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
+  <!-- Spójna logika sesji/nawigacji -->
+  <script defer src="/assets/js/auth.js"></script>
 </head>
 <body>
   <div class="wrapper">
@@ -82,12 +84,6 @@
     });
 
     document.addEventListener("DOMContentLoaded", () => {
-      // Jeśli user już zalogowany → przenieś na dashboard
-      netlifyIdentity.on("init", (user) => {
-        if (user) window.location.replace("/dashboard.html");
-      });
-      netlifyIdentity.init();
-
       // Logowanie (bez popupa)
       const loginBtn = document.getElementById("login-submit");
       loginBtn.dataset.label = "Zaloguj się";
@@ -100,10 +96,11 @@
 
         try {
           setBusy(loginBtn, true);
-          const user = await netlifyIdentity.gotrue.login(email, password, true);
+          await netlifyIdentity.gotrue.login(email, password, true);
           try { await netlifyIdentity.refresh(); } catch {}
           flash("Zalogowano. Przenoszę na dashboard...", "success");
-          window.location.replace("/dashboard.html");
+          // auth.js zajmie się przekierowaniem
+          setTimeout(() => { window.location.replace("/dashboard.html"); }, 250);
         } catch (err) {
           flash("Błąd logowania: " + (err?.message || err), "error");
         } finally {
@@ -131,7 +128,8 @@
           try {
             await netlifyIdentity.gotrue.login(email, password, true);
             try { await netlifyIdentity.refresh(); } catch {}
-            window.location.replace("/dashboard.html");
+            // auth.js zajmie się przekierowaniem
+            setTimeout(() => { window.location.replace("/dashboard.html"); }, 250);
           } catch {}
         } catch (err) {
           flash("Nie udało się utworzyć konta: " + (err?.message || err), "error");
